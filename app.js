@@ -14,10 +14,14 @@
     set(k, v) { try { localStorage.setItem('dk.' + k, JSON.stringify(v)); } catch (e) { /* abaikan */ } }
   };
 
+  const ALL = 'Semua kawasan';
+  const TOWNS = Object.keys(D.areas);
+  const savedTown = store.get('town', ALL);
   const state = {
     tab: 'home',
     cat: 'semua',
-    town: store.get('town', 'Semua Pahang'),
+    town: TOWNS.includes(savedTown) ? savedTown : ALL,
+    taman: TOWNS.includes(savedTown) ? store.get('taman', '') : '',
     query: '',
     topic: 'semua',
     favs: new Set(store.get('favs', [])),
@@ -79,6 +83,15 @@
   const allKitchens = () => [...state.myKitchens, ...D.kitchens];
   const allPosts = () => [...state.myPosts, ...D.posts];
 
+  function locLabel() {
+    if (state.taman) return state.taman;
+    return state.town === ALL ? 'Semua kawasan' : state.town;
+  }
+  function setLoc(town, taman) {
+    state.town = town; state.taman = taman || '';
+    store.set('town', state.town); store.set('taman', state.taman);
+  }
+
   function greeting() {
     const h = new Date().getHours();
     if (h < 12) return 'Selamat pagi';
@@ -90,7 +103,8 @@
   function filteredKitchens() {
     const q = state.query.trim().toLowerCase();
     return allKitchens().filter((k) => {
-      if (state.town !== 'Semua Pahang' && k.town !== state.town) return false;
+      if (state.town !== ALL && k.town !== state.town) return false;
+      if (state.taman && k.area !== state.taman) return false;
       if (state.cat === 'ready' && k.status !== 'ready') return false;
       if (state.cat === 'preorder' && k.status !== 'preorder') return false;
       if (!['semua', 'ready', 'preorder'].includes(state.cat) && !(k.cats || []).includes(state.cat)) return false;
@@ -132,8 +146,8 @@
           <div class="brand-row">
             <div class="mini-logo">${I.fork}</div>
             <button class="loc-btn" id="locBtn" aria-label="Tukar kawasan">
-              <small>Kawasan</small>
-              <strong>${esc(state.town === 'Semua Pahang' ? 'Seluruh Pahang' : state.town + ', Pahang')} ${I.down}</strong>
+              <small>${esc(state.taman ? state.town + ', Pahang' : 'Kawasan')}</small>
+              <strong>${esc(locLabel())} ${I.down}</strong>
             </button>
           </div>
           <button class="icon-btn" id="bellBtn" aria-label="Notifikasi">${I.bell}</button>
@@ -161,7 +175,7 @@
       $('#klist').innerHTML = listOrEmpty(l);
       $('#count').textContent = l.length + ' dapur';
     });
-    $('#locBtn').onclick = openTownPicker;
+    $('#locBtn').onclick = () => openTownPicker();
     $('#bellBtn').onclick = askNotif;
     $('#sellBtn').onclick = openListingForm;
   }
@@ -178,7 +192,7 @@
     const posts = allPosts().filter((p) => state.topic === 'semua' || p.topic === state.topic);
     view.innerHTML = `
       <header class="page-head pad">
-        <div class="row"><h1>Komuniti</h1><button class="pill-loc" id="locBtn2">${I.pin}${esc(state.town === 'Semua Pahang' ? 'Pahang' : state.town)}</button></div>
+        <div class="row"><h1>Komuniti</h1><button class="pill-loc" id="locBtn2">${I.pin}${esc(state.town === ALL ? 'Semua kawasan' : state.town)}</button></div>
         <div class="chip-row" role="group" aria-label="Topik">
           ${D.topics.map((t) => `<button class="topic" data-topic="${t.id}" aria-pressed="${state.topic === t.id}">${t.label}</button>`).join('')}
         </div>
@@ -193,7 +207,7 @@
         ${posts.length ? posts.map(postCard).join('') : '<div class="empty"><span class="big" aria-hidden="true">💬</span><strong>Belum ada hantaran</strong><p>Jadi yang pertama tulis dalam topik ini.</p></div>'}
       </div>`;
     $('#writeBtn').onclick = openPostForm;
-    $('#locBtn2').onclick = openTownPicker;
+    $('#locBtn2').onclick = () => openTownPicker();
   }
 
   function postCard(p) {
@@ -235,7 +249,7 @@
       <div class="pad stack" style="padding-top:16px">
         <span class="eyebrow">Tentang</span>
         <div class="about-title"><h2>Dapurkita</h2><span class="mini-pill">${flag(true)}@pahang</span></div>
-        <p class="muted" style="margin:0">Inisiatif komuniti percuma (PWA) yang menghubungkan pembeli dengan dapur rumah sekitar Kuantan, Temerloh, Bentong dan seluruh Pahang secara terus.</p>
+        <p class="muted" style="margin:0">Inisiatif komuniti percuma (PWA) yang menghubungkan pembeli dengan dapur rumah sekitar Bentong, Karak, Mempaga, Raub dan Janda Baik secara terus.</p>
 
         <div class="install-card">
           <div class="head"><div class="ic">${I.phone}</div><div><strong>${installed ? 'Aplikasi sudah dipasang' : 'Pasang aplikasi'}</strong><span>Tanpa Play Store atau App Store</span></div></div>
@@ -308,9 +322,20 @@
     $('#optPost').onclick = openPostForm;
   }
 
-  function openTownPicker() {
-    openSheet(`${head('Pilih kawasan')}
-      <div class="perks">${D.towns.map((t) => `<button class="perk" data-town="${esc(t)}" style="width:100%;border:0;background:none;text-align:left;justify-content:space-between">${esc(t)}${state.town === t ? '<b>✓</b>' : ''}</button>`).join('')}</div>`);
+  function openTownPicker(pick) {
+    const cur = pick || (state.town === ALL ? TOWNS[0] : state.town);
+    const tick = (on) => on ? '<b aria-hidden="true">✓</b>' : '';
+    const row = 'style="width:100%;border:0;background:none;text-align:left;justify-content:space-between"';
+    openSheet(`${head('Pilih kawasan', 'Taman berdekatan')}
+      <button class="option${state.town === ALL ? ' primary' : ''}" data-loc="${ALL}" data-taman=""><span class="o-ico">${I.pin}</span><span class="o-txt"><strong>Semua kawasan</strong><span>${TOWNS.join(' · ')}</span></span></button>
+      <div class="chip-row" role="tablist" aria-label="Kawasan">
+        ${TOWNS.map((t) => `<button class="topic" role="tab" data-pick-town="${esc(t)}" aria-pressed="${t === cur}" aria-selected="${t === cur}">${esc(t)}</button>`).join('')}
+      </div>
+      <div class="perks">
+        <button class="perk" ${row} data-loc="${esc(cur)}" data-taman=""><span><b>Semua taman di ${esc(cur)}</b></span>${tick(state.town === cur && !state.taman)}</button>
+        ${D.areas[cur].map((tm) => `<button class="perk" ${row} data-loc="${esc(cur)}" data-taman="${esc(tm)}">${esc(tm)}${tick(state.taman === tm)}</button>`).join('')}
+      </div>
+      <p class="muted small" style="margin:0">Taman anda tiada dalam senarai? Pilih “Semua taman di ${esc(cur)}”.</p>`, { noFocus: true });
   }
 
   function openDetail(id) {
@@ -353,9 +378,10 @@
       <form id="sellForm" class="stack" novalidate>
         <div class="field"><label for="f-name">Nama dapur</label><input id="f-name" required maxlength="50" placeholder="cth. Dapur Mak Long"></div>
         <div class="row2">
-          <div class="field"><label for="f-town">Bandar</label><select id="f-town">${D.towns.slice(1).map((t) => `<option${t === state.town ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></div>
-          <div class="field"><label for="f-area">Kawasan</label><input id="f-area" maxlength="40" placeholder="cth. Indera Mahkota"></div>
+          <div class="field"><label for="f-town">Kawasan</label><select id="f-town">${TOWNS.map((t) => `<option${t === state.town ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></div>
+          <div class="field"><label for="f-taman">Taman / kampung</label><select id="f-taman"></select></div>
         </div>
+        <div class="field" id="f-other-wrap" hidden><label for="f-other">Nama taman / kampung</label><input id="f-other" maxlength="40" placeholder="cth. Taman Sri Bentong"></div>
         <div class="field"><span style="font-size:13px;font-weight:700">Status</span>
           <div class="seg" role="group" aria-label="Status"><button type="button" data-status="ready" aria-pressed="true">Ready Stock</button><button type="button" data-status="preorder" aria-pressed="false">Pre-Order</button></div></div>
         <div class="field"><span style="font-size:13px;font-weight:700">Kategori</span>
@@ -368,6 +394,14 @@
         <button class="btn" type="submit">Terbitkan iklan</button>
       </form>`);
     const form = $('#sellForm');
+    const fillTaman = () => {
+      const t = $('#f-town').value;
+      $('#f-taman').innerHTML = D.areas[t].map((tm) => `<option${tm === state.taman ? ' selected' : ''}>${esc(tm)}</option>`).join('') + '<option value="__lain">Lain-lain (taip sendiri)</option>';
+      $('#f-other-wrap').hidden = true;
+    };
+    fillTaman();
+    $('#f-town').onchange = fillTaman;
+    $('#f-taman').onchange = () => { $('#f-other-wrap').hidden = $('#f-taman').value !== '__lain'; if (!$('#f-other-wrap').hidden) $('#f-other').focus(); };
     let status = 'ready';
     const picked = new Set();
     form.addEventListener('click', (e) => {
@@ -387,12 +421,12 @@
         const i = l.lastIndexOf('-'); return i > 0 ? [l.slice(0, i).trim(), l.slice(i + 1).trim()] : [l, ''];
       });
       const k = {
-        id: 'u' + Date.now(), name, town: $('#f-town').value, area: $('#f-area').value.trim(), emoji: '🍽️',
+        id: 'u' + Date.now(), name, town: $('#f-town').value, area: ($('#f-taman').value === '__lain' ? $('#f-other').value.trim() : $('#f-taman').value), emoji: '🍽️',
         status, cats: [...picked], desc: $('#f-desc').value.trim() || 'Masakan rumah dari dapur jiran.',
         menu, hours: $('#f-hours').value.trim(), delivery: '', phone
       };
       state.myKitchens.unshift(k); store.set('myKitchens', state.myKitchens);
-      closeSheet(); state.cat = 'semua'; state.query = ''; state.town = 'Semua Pahang'; go('home');
+      closeSheet(); state.cat = 'semua'; state.query = ''; setLoc(ALL, ''); go('home');
       toast('Iklan diterbitkan');
     });
   }
@@ -409,10 +443,10 @@
       <form id="postForm" class="stack" novalidate>
         <div class="row2">
           <div class="field"><label for="p-topic">Topik</label><select id="p-topic">${D.topics.slice(1).map((t) => `<option value="${t.id}">${t.label}</option>`).join('')}</select></div>
-          <div class="field"><label for="p-town">Bandar</label><select id="p-town">${D.towns.slice(1).map((t) => `<option${t === state.town ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></div>
+          <div class="field"><label for="p-town">Kawasan</label><select id="p-town">${TOWNS.map((t) => `<option${t === state.town ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></div>
         </div>
         <div class="field"><label for="p-name">Nama paparan</label><input id="p-name" maxlength="30" placeholder="cth. Aisyah S." value="${esc(store.get('displayName', ''))}"></div>
-        <div class="field"><label for="p-title">Tajuk</label><input id="p-title" maxlength="80" required placeholder="cth. Siapa jual nasi kerabu area Kuantan?"></div>
+        <div class="field"><label for="p-title">Tajuk</label><input id="p-title" maxlength="80" required placeholder="cth. Siapa jual nasi kerabu area Karak?"></div>
         <div class="field"><label for="p-body">Butiran</label><textarea id="p-body" maxlength="500" placeholder="Tulis butiran di sini…"></textarea></div>
         <p class="small" id="postErr" style="margin:0;font-weight:700" hidden></p>
         <button class="btn" type="submit">Hantar</button>
@@ -516,14 +550,16 @@
       state.liked.has(id) ? state.liked.delete(id) : state.liked.add(id);
       store.set('liked', [...state.liked]); render(); return;
     }
-    const town = t.closest('[data-town]');
-    if (town) { state.town = town.dataset.town; store.set('town', state.town); closeSheet(); render(); return; }
+    const pt = t.closest('[data-pick-town]');
+    if (pt) { openTownPicker(pt.dataset.pickTown); return; }
+    const loc = t.closest('[data-loc]');
+    if (loc) { setLoc(loc.dataset.loc, loc.dataset.taman); closeSheet(); render(); toast('Kawasan: ' + locLabel()); return; }
     const th = t.closest('[data-theme-set]');
     if (th) { state.theme = th.dataset.themeSet; store.set('theme', state.theme); applyTheme(); render(); return; }
     if (t.closest('[data-close]')) { closeSheet(); return; }
     const gt = t.closest('[data-goto]');
     if (gt) { go(gt.dataset.goto); return; }
-    if (t.closest('[data-action="reset"]')) { state.cat = 'semua'; state.query = ''; state.town = 'Semua Pahang'; store.set('town', state.town); render(); return; }
+    if (t.closest('[data-action="reset"]')) { state.cat = 'semua'; state.query = ''; setLoc(ALL, ''); render(); return; }
     const tab = t.closest('.tab');
     if (tab) { go(tab.dataset.tab); }
   });
