@@ -125,12 +125,13 @@
   function kitchenCard(k) {
     const fav = state.favs.has(k.id);
     return `
-      <div class="card" data-open="${esc(k.id)}" role="button" tabindex="0" aria-label="Buka ${esc(k.name)}">
+      <div class="card row-item" data-open="${esc(k.id)}" role="button" tabindex="0" aria-label="Buka ${esc(k.name)}">
         <div class="thumb" aria-hidden="true">${esc(k.emoji || '🍽️')}</div>
         <div class="card-body">
           <strong>${esc(k.name)}</strong>
+          <span class="loc">${I.pin}<span>${esc(k.area ? k.area + ', ' : '')}${esc(k.town)}</span></span>
           <span class="meta">${esc(k.desc)}</span>
-          <div class="chips">${statusChip(k)}<span class="chip">${esc(k.area ? k.area + ', ' : '')}${esc(k.town)}</span>${k.sample ? '<span class="chip">Contoh</span>' : ''}</div>
+          <div class="chips">${statusChip(k)}${k.sample ? '<span class="chip ghost-chip">Contoh</span>' : ''}</div>
         </div>
         <button class="fav" data-fav="${esc(k.id)}" aria-pressed="${fav}" aria-label="${fav ? 'Buang dari' : 'Simpan ke'} Disimpan">${I.heart}</button>
       </div>`;
@@ -158,15 +159,22 @@
         <label class="search" for="q">${I.search}
           <input id="q" type="search" placeholder="Cari nasi lemak, kuih, lauk…" value="${esc(state.query)}" autocomplete="off" enterkeyhint="search">
         </label>
-        <div class="cats" role="group" aria-label="Kategori">
-          ${D.categories.map((c) => `<button class="cat" data-cat="${c.id}" aria-pressed="${state.cat === c.id}"><span class="cat-ico" aria-hidden="true">${c.icon}</span><span>${c.label}</span></button>`).join('')}
-        </div>
-        <div class="banner">
-          <div><span class="eyebrow">Pesan terus ke WhatsApp</span><strong>Tiada komisen. 100% untuk dapur.</strong></div>
-          <button class="round-go" id="sellBtn" aria-label="Iklan menu dapur anda">${I.arrow}</button>
-        </div>
-        <div class="sec-head"><h2>${esc(catTitle)}</h2><span class="count" id="count">${list.length} dapur</span></div>
-        <div class="list" id="klist">${listOrEmpty(list)}</div>
+        <section class="section" aria-labelledby="h-cat">
+          <div class="sec-head"><h2 id="h-cat">Pilih selera</h2></div>
+          <div class="panel">
+            <div class="cats" role="group" aria-label="Kategori">
+              ${D.categories.map((c) => `<button class="cat" data-cat="${c.id}" aria-pressed="${state.cat === c.id}"><span class="cat-ico" aria-hidden="true">${c.icon}</span><span>${c.label}</span></button>`).join('')}
+            </div>
+          </div>
+        </section>
+        <button class="panel banner" id="sellBtn">
+          <span class="banner-txt"><span class="eyebrow">Ada dapur sendiri?</span><strong>Iklan menu percuma. Pesanan terus ke WhatsApp, tiada komisen.</strong></span>
+          <span class="round-go" aria-hidden="true">${I.arrow}</span>
+        </button>
+        <section class="section" aria-labelledby="h-list">
+          <div class="sec-head"><h2 id="h-list">${esc(catTitle)}</h2><span class="count" id="count">${list.length} dapur</span></div>
+          <div class="panel list-panel" id="klist">${listOrEmpty(list)}</div>
+        </section>
       </div>`;
 
     $('#q').addEventListener('input', (e) => {
@@ -182,7 +190,7 @@
 
   function listOrEmpty(list) {
     if (list.length) return list.map(kitchenCard).join('');
-    return `<div class="empty"><span class="big" aria-hidden="true">🍽️</span><strong>Tiada menu dijumpai</strong>
+    return `<div class="empty in-panel"><span class="big" aria-hidden="true">🍽️</span><strong>Tiada menu dijumpai</strong>
       <p>Cuba kata carian lain atau tukar kawasan. Ada dapur sendiri? Iklankan menu anda di sini.</p>
       <button class="btn outline" style="max-width:240px" data-action="reset">Tunjuk semua menu</button></div>`;
   }
@@ -197,14 +205,16 @@
           ${D.topics.map((t) => `<button class="topic" data-topic="${t.id}" aria-pressed="${state.topic === t.id}">${t.label}</button>`).join('')}
         </div>
       </header>
-      <div class="pad stack" style="padding-top:16px">
+      <div class="pad stack page-body">
         <div class="hero-card">
           <span class="eyebrow">Papan warga Pahang</span>
           <span class="big">Tanya port makan, cari runner, atau kongsi open order hari ini.</span>
           <button class="white-btn" id="writeBtn">${I.pen}Tulis hantaran</button>
         </div>
-        <div class="sec-head"><h2>Perbincangan</h2><span class="count">${posts.length} perkongsian</span></div>
-        ${posts.length ? posts.map(postCard).join('') : '<div class="empty"><span class="big" aria-hidden="true">💬</span><strong>Belum ada hantaran</strong><p>Jadi yang pertama tulis dalam topik ini.</p></div>'}
+        <section class="section" aria-labelledby="h-posts">
+          <div class="sec-head"><h2 id="h-posts">Perbincangan</h2><span class="count">${posts.length} perkongsian</span></div>
+          <div class="post-list">${posts.length ? posts.map(postCard).join('') : '<div class="panel empty"><span class="big" aria-hidden="true">💬</span><strong>Belum ada hantaran</strong><p>Jadi yang pertama tulis dalam topik ini.</p></div>'}</div>
+        </section>
       </div>`;
     $('#writeBtn').onclick = openPostForm;
     $('#locBtn2').onclick = () => openTownPicker();
@@ -215,7 +225,7 @@
     const liked = state.liked.has(p.id);
     const initials = p.who.split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
     return `
-      <article class="post">
+      <article class="panel post">
         <div class="post-head">
           <div class="avatar" aria-hidden="true">${esc(initials)}</div>
           <div class="who"><strong>${esc(p.who)}</strong><span>${esc(p.town)} · ${esc(p.ago)}</span></div>
@@ -236,8 +246,8 @@
     const list = allKitchens().filter((k) => state.favs.has(k.id));
     view.innerHTML = `
       <header class="page-head pad"><div class="row"><h1>Disimpan</h1><span class="count muted small">${list.length} dapur</span></div></header>
-      <div class="pad stack" style="padding-top:16px">
-        <div class="list">${list.length ? list.map(kitchenCard).join('') : `<div class="empty"><span class="big" aria-hidden="true">🤍</span><strong>Belum ada yang disimpan</strong><p>Tekan ikon hati pada mana-mana dapur untuk simpan di sini.</p><button class="btn outline" style="max-width:240px" data-goto="home">Cari dapur</button></div>`}</div>
+      <div class="pad stack page-body">
+        <div class="panel list-panel">${list.length ? list.map(kitchenCard).join('') : `<div class="empty in-panel"><span class="big" aria-hidden="true">🤍</span><strong>Belum ada yang disimpan</strong><p>Tekan ikon hati pada mana-mana dapur untuk simpan di sini.</p><button class="btn outline" style="max-width:240px" data-goto="home">Cari dapur</button></div>`}</div>
       </div>`;
   }
 
@@ -246,10 +256,12 @@
     const installed = isStandalone();
     view.innerHTML = `
       <header class="page-head pad"><div class="row"><h1>Akaun</h1></div></header>
-      <div class="pad stack" style="padding-top:16px">
-        <span class="eyebrow">Tentang</span>
-        <div class="about-title"><h2>Dapurkita</h2><span class="mini-pill">${flag(true)}@pahang</span></div>
-        <p class="muted" style="margin:0">Inisiatif komuniti percuma (PWA) yang menghubungkan pembeli dengan dapur rumah sekitar Bentong, Karak, Mempaga, Raub dan Janda Baik secara terus.</p>
+      <div class="pad stack page-body">
+        <section class="panel">
+          <span class="eyebrow">Tentang</span>
+          <div class="about-title"><h2>Dapurkita</h2><span class="mini-pill">${flag(true)}@pahang</span></div>
+          <p class="muted" style="margin:0">Inisiatif komuniti percuma (PWA) yang menghubungkan pembeli dengan dapur rumah sekitar Bentong, Karak, Mempaga, Raub dan Janda Baik secara terus.</p>
+        </section>
 
         <div class="install-card">
           <div class="head"><div class="ic">${I.phone}</div><div><strong>${installed ? 'Aplikasi sudah dipasang' : 'Pasang aplikasi'}</strong><span>Tanpa Play Store atau App Store</span></div></div>
@@ -257,25 +269,34 @@
           <button class="link-btn" id="guideBtn">Lihat panduan pemasangan langkah demi langkah</button>
         </div>
 
+        <section class="section" aria-labelledby="h-perks">
+        <div class="sec-head"><h2 id="h-perks">Kelebihan app</h2></div>
         <div class="perks">
           <div class="perk"><span class="pi">${I.bolt}</span>Pasang ke skrin utama dalam 2 saat</div>
           <div class="perk"><span class="pi">${I.bell}</span>Notifikasi bila ada open order baru</div>
           <div class="perk"><span class="pi">${I.wa}</span>Pesan terus ke WhatsApp, tiada komisen</div>
         </div>
+        </section>
 
-        <span class="eyebrow">Tema paparan</span>
+        <section class="section" aria-labelledby="h-theme">
+        <div class="sec-head"><h2 id="h-theme">Tema paparan</h2></div>
+        <div class="panel tight">
         <div class="seg" role="group" aria-label="Tema paparan">
           <button data-theme-set="light" aria-pressed="${state.theme === 'light'}">${I.sun}Cerah</button>
           <button data-theme-set="dark" aria-pressed="${state.theme === 'dark'}">${I.moon}Gelap</button>
           <button data-theme-set="auto" aria-pressed="${state.theme === 'auto'}">${I.auto}Auto</button>
         </div>
+        </div>
+        </section>
 
-        <span class="eyebrow">Dapur & hantaran saya</span>
+        <section class="section" aria-labelledby="h-mine">
+        <div class="sec-head"><h2 id="h-mine">Dapur & hantaran saya</h2></div>
         <div class="perks">
           <div class="perk"><span class="pi">${I.shop}</span>${state.myKitchens.length} iklan menu</div>
           <div class="perk"><span class="pi">${I.chat}</span>${state.myPosts.length} hantaran komuniti</div>
+          <p class="perk-note muted small">Iklan dan hantaran anda kini disimpan di peranti ini sahaja. Ia akan dikongsi dengan semua pengguna bila pangkalan data disambung.</p>
         </div>
-        <p class="muted small" style="margin:0">Iklan dan hantaran anda kini disimpan di peranti ini sahaja. Ia akan dikongsi dengan semua pengguna bila pangkalan data disambung.</p>
+        </section>
         <button class="btn outline" id="splashAgain">Tunjuk skrin pembuka semula</button>
       </div>`;
     const ib = $('#installBtn');
