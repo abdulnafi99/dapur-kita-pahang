@@ -33,17 +33,17 @@ window.DK_DATA = {
     },
     {
       id: 'k2', sample: true, name: 'Kak Ina Frozen', town: 'Karak', area: 'Taman Karak Indah', emoji: '🥟',
-      status: 'preorder', cats: ['frozen', 'kuih'],
+      status: 'preorder', lead: 1, cats: ['frozen', 'kuih'],
       desc: 'Risoles, popia dan karipap sejuk beku. Pesan sehari awal, ambil di Taman Karak Indah.',
       menu: [['Risoles ayam (10 biji)', 'RM15.00'], ['Popia sayur (20 biji)', 'RM12.00'], ['Karipap pusing (15 biji)', 'RM14.00']],
       hours: 'Pesan sebelum 9 malam', delivery: 'Ambil sendiri / runner sekitar Karak'
     },
     {
       id: 'k3', sample: true, name: 'Patin Tempoyak Wan', town: 'Mempaga', area: 'FELDA Mempaga 2', emoji: '🐟',
-      status: 'preorder', cats: ['lauk'],
+      status: 'preorder', lead: 3, cats: ['lauk'],
       desc: 'Gulai tempoyak ikan patin cara orang Pahang. Boleh tempah untuk kenduri kecil.',
       menu: [['Gulai tempoyak patin (sepotong)', 'RM16.00'], ['Set keluarga 5 orang', 'RM75.00']],
-      hours: 'Tempah H-1', delivery: 'Ambil sendiri'
+      hours: 'Tempah 3 hari awal', delivery: 'Ambil sendiri'
     },
     {
       id: 'k4', sample: true, name: 'Kuih Muih Cik Yah', town: 'Karak', area: 'Taman Permai', emoji: '🍡',
@@ -65,6 +65,13 @@ window.DK_DATA = {
       desc: 'Teh tarik dan kopi Raub dalam botol, sedap sejuk atau panas.',
       menu: [['Teh tarik botol 500ml', 'RM5.00'], ['Kopi Raub botol 500ml', 'RM6.00']],
       hours: '10 pagi – 6 petang', delivery: 'Runner sekitar bandar Raub'
+    },
+    {
+      id: 'k8', sample: true, name: 'Katering Kenduri Pak Din', town: 'Raub', area: 'Taman Raub Utama', emoji: '🍲',
+      status: 'preorder', lead: 30, cats: ['nasi', 'lauk'],
+      desc: 'Nasi minyak dan lauk kenduri untuk majlis 50 hingga 500 orang. Tempah sebulan awal.',
+      menu: [['Pakej nasi minyak (seorang)', 'RM12.00'], ['Dalca + acar (seorang)', 'RM3.00']],
+      hours: 'Tempah 1 bulan awal', delivery: 'Hantar ke lokasi majlis sekitar Raub'
     },
     {
       id: 'k7', sample: true, name: 'Halia Bentong Kak Siti', town: 'Bentong', area: 'Taman Bukit Bentong', emoji: '🫚',

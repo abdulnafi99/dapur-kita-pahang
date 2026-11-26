@@ -91,6 +91,11 @@
   const priceOf = (txt) => { const m = String(txt || '').replace(/,/g, '').match(/(\d+(?:\.\d{1,2})?)/); return m ? parseFloat(m[1]) : null; };
   const rm = (n) => 'RM' + n.toFixed(2);
 
+  /* Tempoh tempahan Pre-Order (hari) */
+  const LEADS = [{ d: 1, t: '1 hari' }, { d: 3, t: '3 hari' }, { d: 7, t: '1 minggu' }, { d: 30, t: '1 bulan' }];
+  const leadOf = (k) => (LEADS.some((l) => l.d === +k.lead) ? +k.lead : 1);
+  const leadText = (k) => LEADS.find((l) => l.d === leadOf(k)).t;
+
   const flag = (sm) => `<span class="flag${sm ? ' sm' : ''}" role="img" aria-label="Bendera Pahang"><i></i><i></i></span>`;
 
   /* ---------- Tema ---------- */
@@ -150,7 +155,7 @@
   function statusChip(k) {
     return k.status === 'ready'
       ? '<span class="chip"><span class="dot"></span>Ready Stock</span>'
-      : '<span class="chip"><span class="dot po"></span>Pre-Order H-1</span>';
+      : `<span class="chip"><span class="dot po"></span>Pre-Order · ${leadText(k)}</span>`;
   }
 
   function kitchenCard(k) {
@@ -478,18 +483,23 @@
   }
 
   /* ---------- Borang pesanan -> WhatsApp ---------- */
+  function fmtDay(d) {
+    try { return d.toLocaleDateString('ms-MY', { weekday: 'short', day: 'numeric', month: 'short' }); }
+    catch (e) { return d.toISOString().slice(0, 10); }
+  }
+
   function openOrder(k) {
     const saved = store.get('buyer', {});
     const items = (k.menu || []).map((m, i) => ({ i, name: m[0], label: m[1] || '', price: priceOf(m[1]), qty: 0 }));
-    const tomorrow = new Date(Date.now() + 86400000);
+    const earliest = new Date(Date.now() + (k.status === 'preorder' ? leadOf(k) : 0) * 86400000);
     const iso = (d) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-    const minDate = k.status === 'preorder' ? iso(tomorrow) : iso(new Date());
+    const minDate = iso(earliest);
     let method = saved.method === 'hantar' ? 'hantar' : 'ambil';
 
     openSheet(`<div class="sheet-head"><button class="close" data-back aria-label="Kembali">${I.back}</button><div style="flex:1;min-width:0"><span class="eyebrow">Pesanan kepada</span><h2 style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(k.name)}</h2></div></div>
       <form id="orderForm" class="stack" novalidate>
         <section class="section">
-          <div class="sec-head"><h2>Pilih menu</h2><span class="count">${k.status === 'preorder' ? 'Pre-Order H-1' : 'Ready Stock'}</span></div>
+          <div class="sec-head"><h2>Pilih menu</h2><span class="count">${k.status === 'preorder' ? 'Pre-Order · tempah ' + leadText(k) + ' awal' : 'Ready Stock'}</span></div>
           <div class="panel list-panel">
             ${items.length ? items.map((it) => `
               <div class="order-item">
@@ -515,6 +525,7 @@
               <div class="field"><label for="o-date">Tarikh</label><input id="o-date" type="date" min="${minDate}" value="${minDate}"></div>
               <div class="field"><label for="o-time">Masa</label><input id="o-time" type="time" value="12:00"></div>
             </div>
+            ${k.status === 'preorder' ? `<span class="hint lead-hint">${I.info}<span>Dapur ini terima tempahan sekurang-kurangnya <b>${leadText(k)}</b> lebih awal. Tarikh paling awal: <b>${fmtDay(earliest)}</b>.</span></span>` : ''}
           </div>
         </section>
 
@@ -551,6 +562,7 @@
         ...(chosen.length ? chosen.map((it) => `• ${it.qty} x ${it.name}${it.price != null ? ` — ${rm(it.price * it.qty)}` : ''}`) : ['• (lihat nota)']),
         '',
         chosen.length ? `*Anggaran jumlah: ${rm(total)}${known ? '' : ' + item tanpa harga'}*` : null,
+        k.status === 'preorder' ? `Jenis: Pre-Order (tempah ${leadText(k)} awal)` : null,
         `Cara terima: ${method === 'hantar' ? 'Minta hantar' : 'Ambil sendiri'}`,
         method === 'hantar' && val('o-addr') ? `Alamat: ${val('o-addr')}` : null,
         `Tarikh/masa: ${fmtDate(val('o-date'))} ${val('o-time')}`.trim(),
@@ -597,6 +609,7 @@
       if (!chosen.length && !val('o-note')) return fail('Pilih sekurang-kurangnya satu menu, atau tulis pesanan dalam nota.');
       if (!val('o-name')) return fail('Sila isi nama anda.', 'o-name');
       if (method === 'hantar' && !val('o-addr')) return fail('Sila isi alamat penghantaran.', 'o-addr');
+      if (!val('o-date') || val('o-date') < minDate) return fail(k.status === 'preorder' ? `Dapur ini perlukan tempahan ${leadText(k)} awal. Pilih ${fmtDay(earliest)} atau selepasnya.` : 'Sila pilih tarikh.', 'o-date');
       err.hidden = true;
       store.set('buyer', { name: val('o-name'), phone: val('o-phone'), addr: val('o-addr'), method });
       if (!k.phone) {
@@ -638,6 +651,9 @@
         <div class="field" id="f-other-wrap" hidden><label for="f-other">Nama taman / kampung</label><input id="f-other" maxlength="40" placeholder="cth. Taman Sri Bentong"></div>
         <div class="field"><span style="font-size:13px;font-weight:700">Status</span>
           <div class="seg" role="group" aria-label="Status"><button type="button" data-status="ready" aria-pressed="true">Ready Stock</button><button type="button" data-status="preorder" aria-pressed="false">Pre-Order</button></div></div>
+        <div class="field" id="f-lead-wrap" hidden><span style="font-size:13px;font-weight:700">Tempoh tempahan awal</span>
+          <div class="seg seg-4" role="group" aria-label="Tempoh tempahan awal">${LEADS.map((l) => `<button type="button" data-lead="${l.d}" aria-pressed="${l.d === 1}">${l.t}</button>`).join('')}</div>
+          <span class="hint">Pembeli hanya boleh pilih tarikh selepas tempoh ini.</span></div>
         <div class="field"><span style="font-size:13px;font-weight:700">Kategori</span>
           <div class="chips">${cats.map((c) => `<button type="button" class="topic" data-pick="${c.id}" aria-pressed="false">${c.icon} ${c.label}</button>`).join('')}</div></div>
         <div class="field"><label for="f-desc">Penerangan</label><textarea id="f-desc" maxlength="300" placeholder="Apa yang istimewa tentang masakan anda?"></textarea></div>
@@ -657,6 +673,7 @@
     $('#f-town').onchange = fillTaman;
     $('#f-taman').onchange = () => { $('#f-other-wrap').hidden = $('#f-taman').value !== '__lain'; if (!$('#f-other-wrap').hidden) $('#f-other').focus(); };
     let status = 'ready';
+    let lead = 1;
     const picked = new Set();
     const photos = [];
     const drawPhotos = () => {
@@ -679,7 +696,9 @@
     });
     form.addEventListener('click', (e) => {
       const s = e.target.closest('[data-status]');
-      if (s) { status = s.dataset.status; form.querySelectorAll('[data-status]').forEach((b) => b.setAttribute('aria-pressed', b === s)); }
+      if (s) { status = s.dataset.status; form.querySelectorAll('[data-status]').forEach((b) => b.setAttribute('aria-pressed', b === s)); $('#f-lead-wrap').hidden = status !== 'preorder'; }
+      const ld = e.target.closest('[data-lead]');
+      if (ld) { lead = +ld.dataset.lead; form.querySelectorAll('[data-lead]').forEach((b) => b.setAttribute('aria-pressed', b === ld)); }
       const p = e.target.closest('[data-pick]');
       if (p) { const id = p.dataset.pick; picked.has(id) ? picked.delete(id) : picked.add(id); p.setAttribute('aria-pressed', picked.has(id)); }
     });
@@ -695,7 +714,7 @@
       });
       const k = {
         id: 'u' + Date.now(), name, town: $('#f-town').value, area: ($('#f-taman').value === '__lain' ? $('#f-other').value.trim() : $('#f-taman').value), emoji: '🍽️',
-        status, cats: [...picked], desc: $('#f-desc').value.trim() || 'Masakan rumah dari dapur jiran.',
+        status, lead: status === 'preorder' ? lead : undefined, cats: [...picked], desc: $('#f-desc').value.trim() || 'Masakan rumah dari dapur jiran.',
         menu, hours: $('#f-hours').value.trim(), delivery: '', phone, photos: photos.slice()
       };
       state.myKitchens.unshift(k);
