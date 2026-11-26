@@ -11,7 +11,7 @@
   /* ---------- Storan peranti (selamat jika disekat) ---------- */
   const store = {
     get(k, d) { try { const v = localStorage.getItem('dk.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
-    set(k, v) { try { localStorage.setItem('dk.' + k, JSON.stringify(v)); } catch (e) { /* abaikan */ } }
+    set(k, v) { try { localStorage.setItem('dk.' + k, JSON.stringify(v)); return true; } catch (e) { return false; } }
   };
 
   const ALL = 'Semua kawasan';
@@ -56,10 +56,41 @@
     sun: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
     moon: '<svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></svg>',
     auto: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3v18" /><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/></svg>',
+    camera: '<svg viewBox="0 0 24 24"><path d="M3 8a2 2 0 0 1 2-2h2l2-2h6l2 2h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/></svg>',
+    minus: '<svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg>',
+    plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+    bag: '<svg viewBox="0 0 24 24"><path d="M6 7h12l1 14H5z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>',
     fork: '<svg viewBox="0 0 24 24"><path d="M7 2v8a2 2 0 0 0 2 2v10"/><path d="M11 2v8a2 2 0 0 1-2 2"/><path d="M9 2v6"/><path d="M17 2c-1.7 1.3-2.5 3.6-2.5 6.5V13H17v9"/></svg>'
   };
 
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const safeImg = (src) => (typeof src === 'string' && /^data:image\/(jpeg|png|webp);base64,/.test(src)) ? src : '';
+  const coverOf = (k) => safeImg((k.photos || [])[0]);
+  const thumbHTML = (k) => { const c = coverOf(k); return c ? `<img src="${c}" alt="" loading="lazy" decoding="async">` : esc(k.emoji || '🍽️'); };
+
+  /* Kecilkan foto dalam pelayar (maks 1000px, JPEG) supaya ringan disimpan */
+  function resizeImage(file, max = 1000, quality = 0.72) {
+    return new Promise((resolve, reject) => {
+      if (!file || !/^image\//.test(file.type)) { reject(new Error('Bukan fail gambar')); return; }
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, max / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+        const c = document.createElement('canvas'); c.width = w; c.height = h;
+        const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); ctx.drawImage(img, 0, 0, w, h);
+        URL.revokeObjectURL(url);
+        resolve(c.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Gambar tidak dapat dibaca')); };
+      img.src = url;
+    });
+  }
+
+  /* Harga: "RM7.50" -> 7.5 */
+  const priceOf = (txt) => { const m = String(txt || '').replace(/,/g, '').match(/(\d+(?:\.\d{1,2})?)/); return m ? parseFloat(m[1]) : null; };
+  const rm = (n) => 'RM' + n.toFixed(2);
+
   const flag = (sm) => `<span class="flag${sm ? ' sm' : ''}" role="img" aria-label="Bendera Pahang"><i></i><i></i></span>`;
 
   /* ---------- Tema ---------- */
@@ -126,7 +157,7 @@
     const fav = state.favs.has(k.id);
     return `
       <div class="card row-item" data-open="${esc(k.id)}" role="button" tabindex="0" aria-label="Buka ${esc(k.name)}">
-        <div class="thumb" aria-hidden="true">${esc(k.emoji || '🍽️')}</div>
+        <div class="thumb" aria-hidden="true">${thumbHTML(k)}</div>
         <div class="card-body">
           <strong>${esc(k.name)}</strong>
           <span class="loc">${I.pin}<span>${esc(k.area ? k.area + ', ' : '')}${esc(k.town)}</span></span>
@@ -333,8 +364,9 @@
     });
   }
 
-  function go(tab) {
-    if (tab === state.tab) { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  function go(tab, force) {
+    if (tab === state.tab && !force) { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+    if (tab === state.tab) { window.scrollTo({ top: 0, behavior: 'instant' }); render('f'); showBar(); return; }
     const dir = ORDER.indexOf(tab) > ORDER.indexOf(state.tab) ? 'r' : 'l';
     state.tab = tab;
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -419,24 +451,165 @@
     const k = allKitchens().find((x) => x.id === id);
     if (!k) return;
     const fav = state.favs.has(k.id);
-    const msg = encodeURIComponent(`Assalamualaikum ${k.name}, saya nampak menu anda di Dapurkita @pahang. Saya nak pesan:`);
-    const wa = k.phone ? `https://wa.me/${k.phone}?text=${msg}` : '';
+    const photos = (k.photos || []).map(safeImg).filter(Boolean);
     openSheet(`${head(esc(k.name), esc((k.area ? k.area + ', ' : '') + k.town))}
-      <div class="detail-thumb" aria-hidden="true">${esc(k.emoji || '🍽️')}</div>
+      ${photos.length
+        ? `<div class="gallery" aria-label="Foto makanan">${photos.map((src, i) => `<img src="${src}" alt="Foto makanan ${i + 1} dari ${esc(k.name)}" decoding="async">`).join('')}</div>${photos.length > 1 ? `<div class="dots" aria-hidden="true">${photos.map((_, i) => `<i${i ? '' : ' class="on"'}></i>`).join('')}</div>` : ''}`
+        : `<div class="detail-thumb" aria-hidden="true">${esc(k.emoji || '🍽️')}</div>`}
       <div class="chips">${statusChip(k)}${(k.cats || []).map((c) => { const cc = D.categories.find((x) => x.id === c); return cc ? `<span class="chip">${cc.label}</span>` : ''; }).join('')}${k.sample ? '<span class="chip">Contoh</span>' : ''}</div>
       <p style="margin:0">${esc(k.desc)}</p>
       ${(k.menu && k.menu.length) ? `<div><div class="sec-head" style="margin-bottom:6px"><h2 style="font-size:16px">Menu</h2></div><div class="box">${k.menu.map((m) => `<div class="menu-item"><span>${esc(m[0])}</span><b>${esc(m[1] || '')}</b></div>`).join('')}</div></div>` : ''}
-      <div class="box">
+      ${(k.hours || k.delivery) ? `<div class="box">
         ${k.hours ? `<div class="menu-item"><span class="muted">Masa</span><span>${esc(k.hours)}</span></div>` : ''}
         ${k.delivery ? `<div class="menu-item"><span class="muted">Penghantaran</span><span style="text-align:right">${esc(k.delivery)}</span></div>` : ''}
-      </div>
-      ${wa ? `<a class="btn" href="${wa}" target="_blank" rel="noopener">${I.wa}Pesan melalui WhatsApp</a>`
-           : `<button class="btn" disabled style="opacity:.5">${I.wa}Dapur contoh: tiada nombor WhatsApp</button>`}
+      </div>` : ''}
+      <button class="btn" id="orderBtn">${I.bag}Buat pesanan</button>
       <div class="row2">
         <button class="btn outline" data-fav="${esc(k.id)}" aria-pressed="${fav}">${I.heart}${fav ? 'Disimpan' : 'Simpan'}</button>
         <button class="btn outline" id="shareBtn">${I.share}Kongsi</button>
       </div>`, { noFocus: true });
     $('#shareBtn').onclick = () => shareText(`${k.name} (${k.town}) di Dapurkita @pahang`);
+    $('#orderBtn').onclick = () => openOrder(k);
+    const g = sheet.querySelector('.gallery');
+    if (g) g.addEventListener('scroll', () => {
+      const i = Math.round(g.scrollLeft / g.clientWidth);
+      sheet.querySelectorAll('.dots i').forEach((d, j) => d.classList.toggle('on', j === i));
+    }, { passive: true });
+  }
+
+  /* ---------- Borang pesanan -> WhatsApp ---------- */
+  function openOrder(k) {
+    const saved = store.get('buyer', {});
+    const items = (k.menu || []).map((m, i) => ({ i, name: m[0], label: m[1] || '', price: priceOf(m[1]), qty: 0 }));
+    const tomorrow = new Date(Date.now() + 86400000);
+    const iso = (d) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+    const minDate = k.status === 'preorder' ? iso(tomorrow) : iso(new Date());
+    let method = saved.method === 'hantar' ? 'hantar' : 'ambil';
+
+    openSheet(`<div class="sheet-head"><button class="close" data-back aria-label="Kembali">${I.back}</button><div style="flex:1;min-width:0"><span class="eyebrow">Pesanan kepada</span><h2 style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(k.name)}</h2></div></div>
+      <form id="orderForm" class="stack" novalidate>
+        <section class="section">
+          <div class="sec-head"><h2>Pilih menu</h2><span class="count">${k.status === 'preorder' ? 'Pre-Order H-1' : 'Ready Stock'}</span></div>
+          <div class="panel list-panel">
+            ${items.length ? items.map((it) => `
+              <div class="order-item">
+                <div class="oi-txt"><strong>${esc(it.name)}</strong><span>${esc(it.label || 'Harga ikut peniaga')}</span></div>
+                <div class="stepper" role="group" aria-label="Kuantiti ${esc(it.name)}">
+                  <button type="button" data-step="-1" data-idx="${it.i}" aria-label="Kurang">${I.minus}</button>
+                  <output id="q-${it.i}" aria-live="polite">0</output>
+                  <button type="button" data-step="1" data-idx="${it.i}" aria-label="Tambah">${I.plus}</button>
+                </div>
+              </div>`).join('') : '<p class="muted small" style="margin:12px 0">Peniaga belum senaraikan menu. Tulis pesanan anda dalam nota di bawah.</p>'}
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="sec-head"><h2>Cara terima</h2></div>
+          <div class="panel">
+            <div class="seg" role="group" aria-label="Cara terima">
+              <button type="button" data-method="ambil" aria-pressed="${method === 'ambil'}">Ambil sendiri</button>
+              <button type="button" data-method="hantar" aria-pressed="${method === 'hantar'}">Minta hantar</button>
+            </div>
+            <div class="field" id="o-addr-wrap" ${method === 'hantar' ? '' : 'hidden'}><label for="o-addr">Alamat penghantaran</label><textarea id="o-addr" maxlength="200" placeholder="No. rumah, jalan, taman">${esc(saved.addr || '')}</textarea><span class="hint">Caj penghantaran (jika ada) ditetapkan oleh peniaga.</span></div>
+            <div class="row2">
+              <div class="field"><label for="o-date">Tarikh</label><input id="o-date" type="date" min="${minDate}" value="${minDate}"></div>
+              <div class="field"><label for="o-time">Masa</label><input id="o-time" type="time" value="12:00"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="sec-head"><h2>Maklumat anda</h2></div>
+          <div class="panel">
+            <div class="field"><label for="o-name">Nama</label><input id="o-name" maxlength="40" autocomplete="name" placeholder="cth. Aisyah" value="${esc(saved.name || '')}"></div>
+            <div class="field"><label for="o-phone">No. telefon (pilihan)</label><input id="o-phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="cth. 012-345 6789" value="${esc(saved.phone || '')}"></div>
+            <div class="field"><label for="o-note">Nota (pilihan)</label><textarea id="o-note" maxlength="300" placeholder="cth. Kurang pedas, tambah sambal">${''}</textarea></div>
+          </div>
+        </section>
+
+        <div class="panel order-sum">
+          <div class="sum-row"><span>Jumlah item</span><b id="o-count">0</b></div>
+          <div class="sum-row total"><span>Anggaran jumlah</span><b id="o-total">RM0.00</b></div>
+          <span class="hint" id="o-hint">Harga akhir disahkan oleh peniaga di WhatsApp.</span>
+        </div>
+        <details class="preview"><summary>Lihat mesej WhatsApp</summary><pre id="o-preview"></pre></details>
+        <p class="small" id="orderErr" style="margin:0;font-weight:700" role="alert" hidden></p>
+        <button class="btn" type="submit">${I.wa}${k.phone ? 'Hantar pesanan ke WhatsApp' : 'Semak pesanan (dapur contoh)'}</button>
+      </form>`, { noFocus: true });
+
+    const form = $('#orderForm');
+    const val = (id) => ($('#' + id) ? $('#' + id).value.trim() : '');
+    const fmtDate = (v) => { if (!v) return ''; const [y, m, d] = v.split('-'); return `${d}/${m}/${y}`; };
+    const buildMsg = () => {
+      const chosen = items.filter((it) => it.qty > 0);
+      const known = chosen.every((it) => it.price != null);
+      const total = chosen.reduce((sum, it) => sum + (it.price || 0) * it.qty, 0);
+      const lines = [
+        `Assalamualaikum ${k.name} 👋`,
+        'Saya nak buat pesanan melalui *Dapurkita @pahang*:',
+        '',
+        ...(chosen.length ? chosen.map((it) => `• ${it.qty} x ${it.name}${it.price != null ? ` — ${rm(it.price * it.qty)}` : ''}`) : ['• (lihat nota)']),
+        '',
+        chosen.length ? `*Anggaran jumlah: ${rm(total)}${known ? '' : ' + item tanpa harga'}*` : null,
+        `Cara terima: ${method === 'hantar' ? 'Minta hantar' : 'Ambil sendiri'}`,
+        method === 'hantar' && val('o-addr') ? `Alamat: ${val('o-addr')}` : null,
+        `Tarikh/masa: ${fmtDate(val('o-date'))} ${val('o-time')}`.trim(),
+        `Nama: ${val('o-name') || '-'}`,
+        val('o-phone') ? `Telefon: ${val('o-phone')}` : null,
+        val('o-note') ? `Nota: ${val('o-note')}` : null,
+        '',
+        'Terima kasih!'
+      ].filter((l) => l !== null);
+      return { text: lines.join('\n').trim(), chosen, total, known };
+    };
+    const refresh = () => {
+      const { text, chosen, total, known } = buildMsg();
+      $('#o-count').textContent = chosen.reduce((n, it) => n + it.qty, 0);
+      $('#o-total').textContent = rm(total) + (known ? '' : '+');
+      $('#o-preview').textContent = text;
+    };
+    form.addEventListener('click', (e) => {
+      const st = e.target.closest('[data-step]');
+      if (st) {
+        const it = items[+st.dataset.idx];
+        it.qty = Math.max(0, Math.min(99, it.qty + (+st.dataset.step)));
+        const out = $('#q-' + it.i); out.textContent = it.qty;
+        out.classList.remove('bump'); void out.offsetWidth; out.classList.add('bump');
+        out.closest('.order-item').classList.toggle('picked', it.qty > 0);
+        refresh(); return;
+      }
+      const m = e.target.closest('[data-method]');
+      if (m) {
+        method = m.dataset.method;
+        form.querySelectorAll('[data-method]').forEach((b) => b.setAttribute('aria-pressed', b === m));
+        $('#o-addr-wrap').hidden = method !== 'hantar';
+        refresh();
+      }
+    });
+    form.addEventListener('input', refresh);
+    refresh();
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const err = $('#orderErr');
+      const { text, chosen } = buildMsg();
+      const fail = (msg, id) => { err.textContent = msg; err.hidden = false; if (id) $('#' + id).focus(); };
+      if (!chosen.length && !val('o-note')) return fail('Pilih sekurang-kurangnya satu menu, atau tulis pesanan dalam nota.');
+      if (!val('o-name')) return fail('Sila isi nama anda.', 'o-name');
+      if (method === 'hantar' && !val('o-addr')) return fail('Sila isi alamat penghantaran.', 'o-addr');
+      err.hidden = true;
+      store.set('buyer', { name: val('o-name'), phone: val('o-phone'), addr: val('o-addr'), method });
+      if (!k.phone) {
+        $('.preview').open = true;
+        toast('Ini dapur contoh, tiada nombor WhatsApp. Mesej di atas yang akan dihantar.');
+        return;
+      }
+      const url = `https://wa.me/${k.phone}?text=${encodeURIComponent(text)}`;
+      const w = window.open(url, '_blank', 'noopener');
+      if (!w) location.href = url;
+      toast('Membuka WhatsApp…');
+    });
+    sheet.querySelector('[data-back]').onclick = () => openDetail(k.id);
   }
 
   async function shareText(text) {
@@ -453,6 +626,10 @@
     const cats = D.categories.filter((c) => !['semua', 'ready', 'preorder'].includes(c.id));
     openSheet(`${head('Iklan menu dapur', 'Percuma')}
       <form id="sellForm" class="stack" novalidate>
+        <div class="field"><span style="font-size:13px;font-weight:700">Foto makanan <span class="muted" style="font-weight:600">(maks 3, yang pertama jadi gambar utama)</span></span>
+          <div class="photo-grid" id="photoGrid"></div>
+          <input id="f-photo" type="file" accept="image/*" multiple hidden>
+        </div>
         <div class="field"><label for="f-name">Nama dapur</label><input id="f-name" required maxlength="50" placeholder="cth. Dapur Mak Long"></div>
         <div class="row2">
           <div class="field"><label for="f-town">Kawasan</label><select id="f-town">${TOWNS.map((t) => `<option${t === state.town ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></div>
@@ -481,6 +658,25 @@
     $('#f-taman').onchange = () => { $('#f-other-wrap').hidden = $('#f-taman').value !== '__lain'; if (!$('#f-other-wrap').hidden) $('#f-other').focus(); };
     let status = 'ready';
     const picked = new Set();
+    const photos = [];
+    const drawPhotos = () => {
+      $('#photoGrid').innerHTML = photos.map((src, i) => `<div class="ph"><img src="${src}" alt="Foto ${i + 1}">${i === 0 ? '<span class="ph-tag">Utama</span>' : ''}<button type="button" class="ph-del" data-del="${i}" aria-label="Buang foto ${i + 1}">${I.x}</button></div>`).join('')
+        + (photos.length < 3 ? `<button type="button" class="ph-add" id="phAdd">${I.camera}<span>${photos.length ? 'Tambah' : 'Tambah foto'}</span></button>` : '');
+      const add = $('#phAdd'); if (add) add.onclick = () => $('#f-photo').click();
+    };
+    drawPhotos();
+    $('#f-photo').onchange = async (e) => {
+      const files = [...e.target.files].slice(0, 3 - photos.length);
+      e.target.value = '';
+      for (const f of files) {
+        try { photos.push(await resizeImage(f)); } catch (er) { toast(er.message); }
+      }
+      drawPhotos();
+    };
+    $('#photoGrid').addEventListener('click', (e) => {
+      const d = e.target.closest('[data-del]');
+      if (d) { photos.splice(+d.dataset.del, 1); drawPhotos(); }
+    });
     form.addEventListener('click', (e) => {
       const s = e.target.closest('[data-status]');
       if (s) { status = s.dataset.status; form.querySelectorAll('[data-status]').forEach((b) => b.setAttribute('aria-pressed', b === s)); }
@@ -500,10 +696,16 @@
       const k = {
         id: 'u' + Date.now(), name, town: $('#f-town').value, area: ($('#f-taman').value === '__lain' ? $('#f-other').value.trim() : $('#f-taman').value), emoji: '🍽️',
         status, cats: [...picked], desc: $('#f-desc').value.trim() || 'Masakan rumah dari dapur jiran.',
-        menu, hours: $('#f-hours').value.trim(), delivery: '', phone
+        menu, hours: $('#f-hours').value.trim(), delivery: '', phone, photos: photos.slice()
       };
-      state.myKitchens.unshift(k); store.set('myKitchens', state.myKitchens);
-      closeSheet(); state.cat = 'semua'; state.query = ''; setLoc(ALL, ''); go('home');
+      state.myKitchens.unshift(k);
+      if (!store.set('myKitchens', state.myKitchens)) {
+        // Storan peranti penuh: simpan tanpa foto
+        k.photos = [];
+        if (!store.set('myKitchens', state.myKitchens)) { state.myKitchens.shift(); err.textContent = 'Storan peranti penuh. Buang iklan lama dahulu.'; err.hidden = false; return; }
+        toast('Storan penuh: iklan disimpan tanpa foto');
+      }
+      closeSheet(); state.cat = 'semua'; state.query = ''; setLoc(ALL, ''); go('home', true);
       toast('Iklan diterbitkan');
     });
   }
@@ -536,7 +738,7 @@
       store.set('displayName', who);
       const p = { id: 'up' + Date.now(), topic: $('#p-topic').value, who, town: $('#p-town').value, ago: 'Baru tadi', title, body: $('#p-body').value.trim(), likes: 0, replies: 0 };
       state.myPosts.unshift(p); store.set('myPosts', state.myPosts);
-      closeSheet(); state.topic = 'semua'; go('komuniti');
+      closeSheet(); state.topic = 'semua'; go('komuniti', true);
       toast('Hantaran diterbitkan');
     });
   }

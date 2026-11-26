@@ -9,12 +9,13 @@ Dibina sebagai **PWA** (Progressive Web App): boleh dipasang ke skrin utama tanp
 - **Komuniti**: papan warga ikut topik (Open Order, Cari Makanan, Runner, Review), tulis hantaran, suka
 - **Disimpan**: dapur kegemaran
 - **Akaun**: tentang, butang pasang app, panduan pemasangan iPhone/Android, tema Cerah/Gelap/Auto
-- Butang **+**: iklan menu dapur atau buka diskusi warga
+- Butang **+**: iklan menu dapur (dengan sehingga 3 foto makanan) atau buka diskusi warga
+- **Borang pesanan**: pilih menu & kuantiti, ambil sendiri / minta hantar, tarikh & masa, nota; jumlah dikira automatik, kemudian mesej tersusun dihantar ke WhatsApp peniaga
 - Boleh dibuka tanpa internet (service worker)
 
 ## Status data
 Dapur dan hantaran dalam `data.js` ialah **contoh** (bertanda "Contoh"). Iklan dan hantaran yang pengguna buat
-kini disimpan dalam `localStorage` peranti sahaja. Langkah seterusnya: sambung pangkalan data (contohnya Firebase)
+kini disimpan dalam `localStorage` peranti sahaja. Foto dikecilkan dalam pelayar (maks 1000px JPEG) dan juga disimpan di peranti. Langkah seterusnya: sambung pangkalan data dan storan foto (contohnya Firebase)
 supaya semua pengguna nampak data yang sama.
 
 ## Jalankan secara lokal
