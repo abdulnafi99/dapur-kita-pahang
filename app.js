@@ -306,18 +306,64 @@
   }
 
   /* ---------- Router ---------- */
-  function render() {
+  const ORDER = ['home', 'komuniti', 'disimpan', 'akaun'];
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  function render(anim) {
     document.querySelectorAll('.tab').forEach((b) => {
       if (b.dataset.tab === state.tab) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
     });
     ({ home: renderHome, komuniti: renderKomuniti, disimpan: renderDisimpan, akaun: renderAkaun })[state.tab]();
+    if (anim && !reduceMotion.matches) animateView(anim);
   }
-  function go(tab) { state.tab = tab; render(); window.scrollTo(0, 0); }
+
+  /* Gelongsor halaman ikut arah tab + kemunculan berperingkat */
+  function animateView(dir) {
+    view.classList.remove('enter-r', 'enter-l', 'enter-f');
+    void view.offsetWidth; // mula semula animasi
+    view.classList.add(dir === 'r' ? 'enter-r' : dir === 'l' ? 'enter-l' : 'enter-f');
+    const items = view.querySelectorAll('.list-panel > .row-item, .post-list > .post, .cats > .cat, .perks > .perk');
+    items.forEach((el, i) => { el.style.setProperty('--i', Math.min(i, 10)); el.classList.add('rise'); });
+  }
+
+  function softList() {
+    if (reduceMotion.matches) return;
+    view.querySelectorAll('.list-panel > .row-item, .post-list > .post, .list-panel > .empty').forEach((el, i) => {
+      el.style.setProperty('--i', Math.min(i, 8)); el.classList.add('rise');
+    });
+  }
+
+  function go(tab) {
+    if (tab === state.tab) { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+    const dir = ORDER.indexOf(tab) > ORDER.indexOf(state.tab) ? 'r' : 'l';
+    state.tab = tab;
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    render(dir);
+    showBar();
+  }
+
+  /* Tab bar terapung: sembunyi bila skrol ke bawah, muncul bila skrol ke atas */
+  const bar = $('.tabbar');
+  let lastY = window.scrollY, ticking = false;
+  function showBar() { bar.classList.remove('hide'); }
+  window.addEventListener('scroll', () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => {
+      const y = window.scrollY;
+      const nearBottom = window.innerHeight + y >= document.documentElement.scrollHeight - 40;
+      if (y > lastY + 8 && y > 140 && !nearBottom) bar.classList.add('hide');
+      else if (y < lastY - 8 || y < 140 || nearBottom) bar.classList.remove('hide');
+      lastY = y; ticking = false;
+    });
+  }, { passive: true });
 
   /* ---------- Sheet ---------- */
   let lastFocus = null;
   function openSheet(html, opts = {}) {
     lastFocus = document.activeElement;
+    clearTimeout(closeTimer);
+    backdrop.classList.remove('closing');
     sheet.className = 'sheet' + (opts.full ? ' full' : '');
     sheet.innerHTML = (opts.full ? '' : '<div class="grabber" aria-hidden="true"></div>') + html;
     sheet.hidden = false; backdrop.hidden = !!opts.full;
@@ -325,16 +371,26 @@
     const f = sheet.querySelector('input, select, textarea, button');
     if (f && !opts.noFocus) f.focus({ preventScroll: true });
   }
+  let closeTimer;
   function closeSheet() {
-    sheet.hidden = true; backdrop.hidden = true; sheet.innerHTML = '';
-    document.body.style.overflow = '';
-    if (lastFocus && lastFocus.focus) lastFocus.focus({ preventScroll: true });
+    if (sheet.hidden) return;
+    $('#plusBtn').classList.remove('open');
+    const done = () => {
+      sheet.hidden = true; backdrop.hidden = true; sheet.innerHTML = '';
+      sheet.classList.remove('closing'); backdrop.classList.remove('closing');
+      document.body.style.overflow = '';
+      if (lastFocus && lastFocus.focus) lastFocus.focus({ preventScroll: true });
+    };
+    if (reduceMotion.matches) { done(); return; }
+    sheet.classList.add('closing'); backdrop.classList.add('closing');
+    closeTimer = setTimeout(done, 250);
   }
   backdrop.onclick = closeSheet;
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !sheet.hidden) closeSheet(); });
   const head = (title, eyebrow) => `<div class="sheet-head"><div>${eyebrow ? `<span class="eyebrow">${eyebrow}</span>` : ''}<h2>${title}</h2></div><button class="close" data-close aria-label="Tutup">${I.x}</button></div>`;
 
   function openCreate() {
+    $('#plusBtn').classList.add('open');
     openSheet(`${head('Apa nak buat?')}
       <button class="option primary" id="optSell"><span class="o-ico">${I.shop}</span><span class="o-txt"><strong>Iklan menu dapur rumah</strong><span>Terima pesanan terus ke WhatsApp, percuma</span></span>${I.chev}</button>
       <button class="option" id="optPost"><span class="o-ico">${I.chat}</span><span class="o-txt"><strong>Buka diskusi warga</strong><span>Cari makanan, open order, runner, review</span></span>${I.chev}</button>
@@ -562,9 +618,9 @@
     const open = t.closest('[data-open]');
     if (open) { openDetail(open.dataset.open); return; }
     const cat = t.closest('[data-cat]');
-    if (cat) { state.cat = cat.dataset.cat; render(); return; }
+    if (cat) { state.cat = cat.dataset.cat; render(); softList(); return; }
     const topic = t.closest('[data-topic]');
-    if (topic) { state.topic = topic.dataset.topic; render(); return; }
+    if (topic) { state.topic = topic.dataset.topic; render(); softList(); return; }
     const like = t.closest('[data-like]');
     if (like) {
       const id = like.dataset.like;
@@ -614,7 +670,7 @@
   }
 
   render();
-  runSplash(false);
+  runSplash(false).then(() => animateView('f'));
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
