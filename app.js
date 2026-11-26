@@ -184,7 +184,7 @@
           </div>
           <button class="icon-btn" id="bellBtn" aria-label="Notifikasi">${I.bell}</button>
         </div>
-        <h1>${greeting()}! Lapar?<br>Dapur jiran dah siap masak.</h1>
+        <h1><span class="h1-sub">${greeting()} 👋</span>Lapar? <span class="hl">Dapur jiran</span><br>dah siap masak.</h1>
       </header>
       <div class="pad stack">
         <label class="search" for="q">${I.search}
@@ -239,7 +239,7 @@
       <div class="pad stack page-body">
         <div class="hero-card">
           <span class="eyebrow">Papan warga Pahang</span>
-          <span class="big">Tanya port makan, cari runner, atau kongsi open order hari ini.</span>
+          <span class="big">Tanya <span class="hl">port makan</span>, cari runner, atau kongsi open order hari ini.</span>
           <button class="white-btn" id="writeBtn">${I.pen}Tulis hantaran</button>
         </div>
         <section class="section" aria-labelledby="h-posts">
@@ -458,12 +458,12 @@
         : `<div class="detail-thumb" aria-hidden="true">${esc(k.emoji || '🍽️')}</div>`}
       <div class="chips">${statusChip(k)}${(k.cats || []).map((c) => { const cc = D.categories.find((x) => x.id === c); return cc ? `<span class="chip">${cc.label}</span>` : ''; }).join('')}${k.sample ? '<span class="chip">Contoh</span>' : ''}</div>
       <p style="margin:0">${esc(k.desc)}</p>
-      ${(k.menu && k.menu.length) ? `<div><div class="sec-head" style="margin-bottom:6px"><h2 style="font-size:16px">Menu</h2></div><div class="box">${k.menu.map((m) => `<div class="menu-item"><span>${esc(m[0])}</span><b>${esc(m[1] || '')}</b></div>`).join('')}</div></div>` : ''}
+      ${(k.menu && k.menu.length) ? `<div><div class="sec-head" style="margin-bottom:6px"><h2 style="font-size:16px">Menu</h2></div><div class="box">${k.menu.map((m) => `<div class="menu-item"><span>${esc(m[0])}</span>${m[1] ? `<b class="price">${esc(m[1])}</b>` : ''}</div>`).join('')}</div></div>` : ''}
       ${(k.hours || k.delivery) ? `<div class="box">
         ${k.hours ? `<div class="menu-item"><span class="muted">Masa</span><span>${esc(k.hours)}</span></div>` : ''}
         ${k.delivery ? `<div class="menu-item"><span class="muted">Penghantaran</span><span style="text-align:right">${esc(k.delivery)}</span></div>` : ''}
       </div>` : ''}
-      <button class="btn" id="orderBtn">${I.bag}Buat pesanan</button>
+      <button class="btn accent" id="orderBtn">${I.bag}Buat pesanan</button>
       <div class="row2">
         <button class="btn outline" data-fav="${esc(k.id)}" aria-pressed="${fav}">${I.heart}${fav ? 'Disimpan' : 'Simpan'}</button>
         <button class="btn outline" id="shareBtn">${I.share}Kongsi</button>
@@ -493,7 +493,7 @@
           <div class="panel list-panel">
             ${items.length ? items.map((it) => `
               <div class="order-item">
-                <div class="oi-txt"><strong>${esc(it.name)}</strong><span>${esc(it.label || 'Harga ikut peniaga')}</span></div>
+                <div class="oi-txt"><strong>${esc(it.name)}</strong><span class="${it.label ? 'price' : ''}">${esc(it.label || 'Harga ikut peniaga')}</span></div>
                 <div class="stepper" role="group" aria-label="Kuantiti ${esc(it.name)}">
                   <button type="button" data-step="-1" data-idx="${it.i}" aria-label="Kurang">${I.minus}</button>
                   <output id="q-${it.i}" aria-live="polite">0</output>
@@ -534,7 +534,7 @@
         </div>
         <details class="preview"><summary>Lihat mesej WhatsApp</summary><pre id="o-preview"></pre></details>
         <p class="small" id="orderErr" style="margin:0;font-weight:700" role="alert" hidden></p>
-        <button class="btn" type="submit">${I.wa}${k.phone ? 'Hantar pesanan ke WhatsApp' : 'Semak pesanan (dapur contoh)'}</button>
+        <button class="btn accent" type="submit">${I.wa}${k.phone ? 'Hantar pesanan ke WhatsApp' : 'Semak pesanan (dapur contoh)'}</button>
       </form>`, { noFocus: true });
 
     const form = $('#orderForm');

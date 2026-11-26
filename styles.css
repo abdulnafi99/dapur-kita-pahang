@@ -22,6 +22,17 @@
   --safe-l: env(safe-area-inset-left, 0px);
   --safe-r: env(safe-area-inset-right, 0px);
   --tabbar-h: 64px;
+  /* Warna aksen untuk tarik perhatian pembeli (di atas asas hitam & kelabu) */
+  --accent: #D7F26B;          /* limau segar: butang utama, sorotan */
+  --accent-strong: #C3E445;
+  --on-accent: #111111;
+  --ready-bg: #E6F6EC; --ready-fg: #13693A;
+  --po-bg: #FFF2D4;    --po-fg: #8A5600;
+  --price: #111111;
+  /* Skala tipografi (grid 4px) */
+  --fs-xs: 11.5px; --fs-sm: 13px; --fs-base: 15px; --fs-md: 17px; --fs-lg: 20px; --fs-xl: 26px;
+  --lh-tight: 1.25; --lh-base: 1.5;
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 20px; --sp-6: 24px;
   --ease-out: cubic-bezier(.22,1,.36,1);
   --ease-spring: cubic-bezier(.34,1.56,.64,1);
   --status-band: #111111;
@@ -33,7 +44,7 @@
   --line: #2C2C2C; --line-soft: #262626; --fg: #F2F2F2; --fg-2: #C4C4C4; --muted: #9A9A9A;
   --brand: #F2F2F2; --on-brand: #111111; --hero-fg: #111111;
   --ready: #4CC27A; --preorder: #E0A84A; --shadow: 0 6px 20px rgba(0,0,0,.4);
-  --status-band: #1E1E1E;
+  --status-band: #1E1E1E; --ready-bg: #13301F; --ready-fg: #7FDCA2; --po-bg: #33280F; --po-fg: #F2C46B; --price: #F2F2F2;
   color-scheme: dark;
 }
 @media (prefers-color-scheme: dark) {
@@ -42,7 +53,7 @@
     --line: #2C2C2C; --line-soft: #262626; --fg: #F2F2F2; --fg-2: #C4C4C4; --muted: #9A9A9A;
     --brand: #F2F2F2; --on-brand: #111111; --hero-fg: #111111;
     --ready: #4CC27A; --preorder: #E0A84A; --shadow: 0 6px 20px rgba(0,0,0,.4);
-    --status-band: #1E1E1E;
+    --status-band: #1E1E1E; --ready-bg: #13301F; --ready-fg: #7FDCA2; --po-bg: #33280F; --po-fg: #F2C46B; --price: #F2F2F2;
     color-scheme: dark;
   }
 }
@@ -435,3 +446,78 @@ a { color: inherit; }
 .preview summary { cursor: pointer; font-size: 14px; font-weight: 700; padding: 14px 0; list-style-position: inside; }
 .preview pre { margin: 0 0 14px; white-space: pre-wrap; word-break: break-word; font-family: var(--font); font-size: 13px; line-height: 1.5; color: var(--fg-2); background: var(--bg); border-radius: 12px; padding: 12px; }
 .field input[type="date"], .field input[type="time"] { min-width: 0; }
+
+/* =========================================================
+   Tipografi & grid seragam + aksen interaktif
+   ========================================================= */
+p, .meta, .muted { text-wrap: pretty; }
+h1, h2, h3, .big, strong { text-wrap: balance; }
+
+/* Tajuk seksyen sejajar dengan tepi kotak */
+.sec-head { padding: 0 2px; min-height: 24px; align-items: center; }
+.sec-head h2 { font-size: var(--fs-md); line-height: var(--lh-tight); }
+.sec-head .count { font-size: var(--fs-sm); font-weight: 600; }
+.eyebrow { font-size: var(--fs-xs); line-height: 1.3; letter-spacing: .8px; }
+
+/* Kotak: padding 16 seragam; senarai dalam kotak sejajar 16 */
+.panel { padding: var(--sp-4); gap: var(--sp-3); }
+.list-panel { padding: var(--sp-1) var(--sp-4); }
+.card.row-item { padding: var(--sp-3) 0; gap: var(--sp-3); align-items: flex-start; }
+.thumb { width: 80px; height: 80px; border-radius: 14px; }
+.card-body { gap: var(--sp-1); padding: 2px 36px 0 0; }
+.card-body strong { font-size: var(--fs-base); line-height: var(--lh-tight); }
+.card-body .meta { font-size: var(--fs-sm); line-height: 1.4; }
+.card-body .loc { font-size: 12px; line-height: 1.3; }
+.chips { gap: 6px; margin-top: 2px; }
+.chip { font-size: var(--fs-xs); line-height: 1; padding: 6px 9px; }
+
+/* Hero: hierarki teks jelas */
+.hero h1 { font-size: var(--fs-xl); line-height: 1.18; letter-spacing: -.6px; }
+.h1-sub { display: block; font-size: var(--fs-sm); font-weight: 600; letter-spacing: 0; color: rgba(255,255,255,.72); margin-bottom: 6px; }
+.hl { color: var(--accent); }
+.hero-card .big { font-size: var(--fs-lg); line-height: 1.3; }
+
+/* Status berwarna supaya mudah dikenal */
+.chips .chip:has(.dot) { background: var(--ready-bg); color: var(--ready-fg); }
+.chips .chip:has(.dot.po) { background: var(--po-bg); color: var(--po-fg); }
+.dot { background: currentColor; }
+
+/* Harga menonjol */
+.price { color: var(--price); font-weight: 800; font-variant-numeric: tabular-nums; }
+.menu-item { align-items: baseline; font-size: 14px; line-height: 1.4; padding: var(--sp-3) 0; }
+.menu-item .price { background: var(--surface-2); padding: 4px 9px; border-radius: 999px; font-size: var(--fs-sm); }
+.oi-txt span.price { color: var(--fg-2); font-weight: 700; }
+
+/* Butang aksen (tindakan utama pembeli) */
+.btn.accent { background: var(--accent); color: var(--on-accent); box-shadow: 0 8px 22px rgba(167, 199, 40, .35); }
+.btn.accent:hover { background: var(--accent-strong); }
+.btn.accent svg { stroke-width: 2.4; }
+.tab-plus { background: var(--accent); color: var(--on-accent); border-color: transparent; box-shadow: 0 0 0 4px rgba(215,242,107,.18), 0 6px 16px rgba(167,199,40,.45); }
+.tab-plus:hover { background: var(--accent-strong); }
+.banner .round-go { background: var(--accent); color: var(--on-accent); }
+.white-btn svg, .install-card .ic { color: #111; }
+.install-card .ic { background: var(--accent); }
+.cat[aria-pressed="true"] .cat-ico { box-shadow: 0 0 0 3px var(--accent); }
+.topic[aria-pressed="true"] { box-shadow: inset 0 -2px 0 var(--accent); }
+.stepper button[data-step="1"] { background: var(--accent); color: var(--on-accent); }
+.order-item.picked .oi-txt strong { text-decoration-color: var(--accent-strong); }
+.sum-row.total b { background: var(--accent); color: var(--on-accent); padding: 2px 10px; border-radius: 999px; }
+.dots i.on { background: var(--fg); }
+.step .n { background: var(--accent); color: var(--on-accent); }
+.fav[aria-pressed="true"] { color: #E0245E; }
+.ghost[aria-pressed="true"] { color: #E0245E; }
+.toast::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); margin-right: 8px; vertical-align: middle; }
+
+/* Post: grid teks seragam */
+.post h3 { font-size: var(--fs-base); line-height: 1.35; }
+.post p { font-size: 14px; line-height: var(--lh-base); }
+.post-head .who strong { font-size: 14px; line-height: 1.3; }
+.post-head .who span { font-size: 12px; line-height: 1.3; }
+.avatar { background: var(--accent); color: var(--on-accent); }
+
+/* Borang: label & hint seragam */
+.field { gap: 6px; }
+.field label, .field > span:first-child { font-size: var(--fs-sm); font-weight: 700; line-height: 1.3; }
+.field .hint { font-size: 12px; line-height: 1.4; }
+.perk { font-size: 14px; line-height: 1.35; padding: var(--sp-3) var(--sp-4); }
+.perk .pi { background: var(--tint); }
