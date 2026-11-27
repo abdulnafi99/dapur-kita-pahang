@@ -235,6 +235,31 @@
             ".validate": "newData.val() === true && root.child('pahang').child('posts').child($post).exists()"
           }
         }
+      },
+      "comments": {
+        ".read": true,
+        "$post": {
+          ".write": "auth != null && !newData.exists() && root.child('pahang').child('posts').child($post).child('owner').val() === auth.uid",
+          "$cid": {
+            ".write": "auth != null && ((!data.exists() && newData.child('owner').val() === auth.uid && root.child('pahang').child('posts').child($post).exists()) || (data.exists() && !newData.exists() && (data.child('owner').val() === auth.uid || root.child('pahang').child('posts').child($post).child('owner').val() === auth.uid)))",
+            ".validate": "newData.hasChildren(['who', 'text', 'owner', 'createdAt'])",
+            "who": {
+              ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40"
+            },
+            "text": {
+              ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 300"
+            },
+            "owner": {
+              ".validate": "newData.val() === auth.uid"
+            },
+            "createdAt": {
+              ".validate": "newData.isNumber()"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        }
       }
     }
   }

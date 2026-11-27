@@ -65,6 +65,7 @@ window.DK_FB = {
   onKitchens(cb, onErr) { return onValue(ref(db, ROOT + 'kitchens'), (s) => cb(toList(s)), onErr); },
   onPosts(cb, onErr) { return onValue(ref(db, ROOT + 'posts'), (s) => cb(toList(s)), onErr); },
   onLikes(cb, onErr) { return onValue(ref(db, ROOT + 'likes'), (s) => cb(s.val() || {}), onErr); },
+  onComments(cb, onErr) { return onValue(ref(db, ROOT + 'comments'), (s) => cb(s.val() || {}), onErr); },
   onConnection(cb) { return onValue(ref(db, '.info/connected'), (s) => cb(s.val() === true)); },
 
   async addKitchen(data, photos) {
@@ -108,7 +109,17 @@ window.DK_FB = {
   },
   async deletePost(id) {
     await needUid();
-    await update(ref(db), { [ROOT + 'posts/' + id]: null, [ROOT + 'likes/' + id]: null });
+    await update(ref(db), { [ROOT + 'posts/' + id]: null, [ROOT + 'likes/' + id]: null, [ROOT + 'comments/' + id]: null });
+  },
+  async addComment(postId, data) {
+    const owner = await needUid();
+    const id = push(ref(db, ROOT + 'comments/' + postId)).key;
+    await set(ref(db, ROOT + 'comments/' + postId + '/' + id), { ...data, owner, createdAt: serverTimestamp() });
+    return id;
+  },
+  async deleteComment(postId, id) {
+    await needUid();
+    await set(ref(db, ROOT + 'comments/' + postId + '/' + id), null);
   },
   async setLike(postId, on) {
     const u = await needUid();

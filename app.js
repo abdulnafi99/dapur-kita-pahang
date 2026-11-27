@@ -33,6 +33,8 @@
     remoteKitchens: null,
     remotePosts: null,
     remoteLikes: {},
+    remoteComments: {},
+    openComments: new Set(),
     online: false
   };
 
@@ -66,6 +68,7 @@
     plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
     bag: '<svg viewBox="0 0 24 24"><path d="M6 7h12l1 14H5z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>',
     trash: '<svg viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 13h10l1-13"/><path d="M9 7V4h6v3"/></svg>',
+    send: '<svg viewBox="0 0 24 24"><path d="M4 12l16-8-6 16-2.5-6.5z"/><path d="M11.5 13.5 20 4"/></svg>',
     sparkle: '<svg viewBox="0 0 24 24"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>',
     fork: '<svg viewBox="0 0 24 24"><path d="M7 2v8a2 2 0 0 0 2 2v10"/><path d="M11 2v8a2 2 0 0 1-2 2"/><path d="M9 2v6"/><path d="M17 2c-1.7 1.3-2.5 3.6-2.5 6.5V13H17v9"/></svg>'
   };
@@ -149,7 +152,10 @@
     const h = Math.round(m / 60);
     if (h < 24) return h + ' jam';
     const d = Math.round(h / 24);
-    return d === 1 ? 'Semalam' : d + ' hari';
+    if (d === 1) return 'Semalam';
+    if (d < 7) return d + ' hari';
+    try { return new Date(ts).toLocaleDateString('ms-MY', { day: 'numeric', month: 'short', year: d > 300 ? 'numeric' : undefined }); }
+    catch (e) { return d + ' hari'; }
   }
   const normPost = (p) => {
     const likes = state.remoteLikes[p.id] || {};
@@ -324,11 +330,77 @@
         <p>${esc(p.body)}</p>
         <div class="post-foot">
           <button class="ghost" data-like="${esc(p.id)}" aria-pressed="${liked}">${I.heart}${p.remote ? p.likes : p.likes + (liked ? 1 : 0)} suka</button>
+          ${p.remote ? `<button class="ghost" data-cmt="${esc(p.id)}" aria-expanded="${state.openComments.has(p.id)}" aria-controls="cmt-${esc(p.id)}">${I.chat}<span class="cmt-count" data-cmt-count="${esc(p.id)}">${commentsOf(p.id).length}</span> komen</button>` : ''}
           ${p.sample ? '<span class="ghost" style="margin-left:auto">Contoh</span>' : ''}
           ${ownsPost(p) ? `<button class="edit-btn post-edit" data-edit-p="${esc(p.id)}" aria-label="Edit hantaran ${esc(p.title)}">${I.pen}Edit</button>` : ''}
           ${ownsPost(p) ? `<button class="del-btn post-del" data-del-p="${esc(p.id)}" aria-label="Padam hantaran ${esc(p.title)}">${I.trash}Padam</button>` : ''}
         </div>
+        ${p.remote && state.openComments.has(p.id) ? commentThread(p) : ''}
       </article>`;
+  }
+
+  /* ---------- Komen hantaran ---------- */
+  function commentsOf(postId) {
+    const v = state.remoteComments[postId] || {};
+    return Object.keys(v).map((id) => ({ ...v[id], id })).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  }
+  function commentItems(p) {
+    const list = commentsOf(p.id);
+    if (!list.length) return '<p class="cmt-empty">Belum ada komen. Jadi yang pertama!</p>';
+    const uid = fb() && fb().uid;
+    return list.map((c) => {
+      const canDel = uid && (c.owner === uid || p.owner === uid);
+      const ini = String(c.who || '?').split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+      return `<div class="cmt">
+        <span class="cmt-av" aria-hidden="true">${esc(ini)}</span>
+        <div class="cmt-body"><div class="cmt-meta"><strong>${esc(c.who)}</strong><span>${esc(agoText(c.createdAt))}</span>${c.owner === p.owner ? '<span class="cmt-op">Penulis</span>' : ''}</div><p>${esc(c.text)}</p></div>
+        ${canDel ? `<button class="cmt-del" data-del-c="${esc(c.id)}" data-post="${esc(p.id)}" aria-label="Padam komen">${I.x}</button>` : ''}
+      </div>`;
+    }).join('');
+  }
+  function commentThread(p) {
+    const name = store.get('displayName', '');
+    return `<div class="cmt-thread" id="cmt-${esc(p.id)}">
+      <div class="cmt-list" data-cmt-list="${esc(p.id)}">${commentItems(p)}</div>
+      <form class="cmt-form" data-cmt-form="${esc(p.id)}" novalidate>
+        ${name ? '' : `<input class="cmt-name" name="who" maxlength="40" placeholder="Nama anda" aria-label="Nama anda" autocomplete="name">`}
+        <div class="cmt-row">
+          <input class="cmt-input" name="text" maxlength="300" placeholder="${name ? 'Komen sebagai ' + esc(name) + '…' : 'Tulis komen…'}" aria-label="Tulis komen" autocomplete="off" enterkeyhint="send">
+          <button class="cmt-send" type="submit" aria-label="Hantar komen">${I.send}</button>
+        </div>
+      </form>
+    </div>`;
+  }
+  /* Kemas kini senarai komen sahaja (tidak ganggu input yang sedang ditaip) */
+  function refreshComments() {
+    view.querySelectorAll('[data-cmt-count]').forEach((el) => { el.textContent = commentsOf(el.dataset.cmtCount).length; });
+    view.querySelectorAll('[data-cmt-list]').forEach((el) => {
+      const p = allPosts().find((x) => x.id === el.dataset.cmtList);
+      if (p) el.innerHTML = commentItems(p);
+    });
+  }
+  async function submitComment(form) {
+    const postId = form.dataset.cmtForm;
+    const text = form.text.value.trim();
+    const whoInput = form.who;
+    const who = (whoInput ? whoInput.value.trim() : store.get('displayName', '')) || '';
+    if (whoInput && !who) { whoInput.focus(); toast('Sila isi nama anda'); return; }
+    if (!text) { form.text.focus(); return; }
+    const btn = form.querySelector('.cmt-send');
+    btn.disabled = true;
+    try {
+      await withTimeout(fb().addComment(postId, { who: who.slice(0, 40), text: text.slice(0, 300) }), 15000);
+      if (whoInput) { store.set('displayName', who); }
+      form.text.value = '';
+      if (whoInput) render();
+    } catch (er) { toast('Komen gagal dihantar: ' + (er.message || er)); }
+    btn.disabled = false;
+  }
+  async function deleteComment(btn) {
+    if (btn.dataset.armed !== '1') { btn.dataset.armed = '1'; btn.classList.add('armed'); btn.setAttribute('aria-label', 'Tekan lagi untuk padam komen'); setTimeout(() => { if (btn.isConnected) { btn.dataset.armed = ''; btn.classList.remove('armed'); } }, 3000); toast('Tekan ✕ sekali lagi untuk padam komen'); return; }
+    btn.disabled = true;
+    try { await fb().deleteComment(btn.dataset.post, btn.dataset.delC); toast('Komen dipadam'); }
+    catch (er) { toast('Gagal padam: ' + (er.message || er)); btn.disabled = false; }
   }
 
   /* ---------- Skrin: Disimpan ---------- */
@@ -437,6 +509,7 @@
     F.onKitchens((list) => { state.remoteKitchens = list; softRender(); }, onErr);
     F.onPosts((list) => { state.remotePosts = list; softRender(); }, onErr);
     F.onLikes((likes) => { state.remoteLikes = likes; if (state.tab === 'komuniti') softRender(); }, onErr);
+    if (F.onComments) F.onComments((c) => { state.remoteComments = c; if (state.tab === 'komuniti') refreshComments(); }, onErr);
     F.authReady.then(() => softRender());
   }
   /* Kemas kini tanpa ganggu input yang sedang ditaip */
@@ -449,6 +522,7 @@
       return;
     }
     if (state.tab === 'komuniti' && $('.post-list')) {
+      if (document.activeElement && document.activeElement.closest && document.activeElement.closest('.cmt-form')) { refreshComments(); return; }
       const posts = allPosts().filter((p) => state.topic === 'semua' || p.topic === state.topic);
       $('.post-list').innerHTML = posts.length ? posts.map(postCard).join('') : '<div class="panel empty"><span class="big" aria-hidden="true">💬</span><strong>Belum ada hantaran</strong><p>Jadi yang pertama tulis dalam topik ini.</p></div>';
       const c = view.querySelector('#h-posts + .count'); if (c) c.textContent = posts.length + ' perkongsian';
@@ -1088,6 +1162,16 @@
   /* ---------- Delegasi klik global ---------- */
   document.addEventListener('click', (e) => {
     const t = e.target;
+    const cb = t.closest('[data-cmt]');
+    if (cb) {
+      const id = cb.dataset.cmt;
+      state.openComments.has(id) ? state.openComments.delete(id) : state.openComments.add(id);
+      softRender();
+      if (state.openComments.has(id)) setTimeout(() => { const f = view.querySelector(`[data-cmt-form="${CSS.escape(id)}"]`); if (f) { f.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } }, 50);
+      return;
+    }
+    const dc = t.closest('[data-del-c]');
+    if (dc) { deleteComment(dc); return; }
     const ep = t.closest('[data-edit-p]');
     if (ep) { const po = allPosts().find((x) => x.id === ep.dataset.editP); if (po) openPostForm(po); return; }
     const ek = t.closest('[data-edit-k]');
@@ -1137,6 +1221,10 @@
     if (t.closest('[data-action="reset"]')) { state.cat = 'semua'; state.query = ''; setLoc(ALL, ''); render(); return; }
     const tab = t.closest('.tab');
     if (tab) { go(tab.dataset.tab); }
+  });
+  document.addEventListener('submit', (e) => {
+    const f = e.target.closest && e.target.closest('[data-cmt-form]');
+    if (f) { e.preventDefault(); submitComment(f); }
   });
   document.addEventListener('keydown', (e) => {
     if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[data-open]')) { e.preventDefault(); openDetail(e.target.dataset.open); }
