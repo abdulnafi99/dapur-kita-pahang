@@ -605,3 +605,7 @@ body.touring { overflow: hidden; }
 .edit-btn:active { transform: scale(.94); }
 .mine-row .edit-btn { margin-right: -4px; }
 @media (max-width: 380px) { .owner-box { flex-wrap: wrap; } .owner-btns { width: 100%; } .owner-btns > * { flex: 1; justify-content: center; } }
+/* Padam hantaran (pemilik sahaja) */
+.post-del { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; color: #C2185B; border-color: #F3C2D3; }
+.post-del svg { width: 15px; height: 15px; }
+.post-del[data-armed="1"] { color: #fff; }

@@ -158,6 +158,7 @@
   const fb = () => window.DK_FB || null;
   const isMine = (x) => !!(x.remote && fb() && fb().uid && x.owner === fb().uid);
   /* Pemilik iklan: iklan Firebase milik peranti ini, atau iklan yang disimpan di peranti ini */
+  const ownsPost = (p) => isMine(p) || (!p.remote && !p.sample && String(p.id).startsWith('up'));
   const ownsKitchen = (k) => isMine(k) || (!k.remote && !k.sample && String(k.id).startsWith('u'));
   /* Contoh hanya ditunjuk selagi belum ada data sebenar */
   const allKitchens = () => {
@@ -317,7 +318,7 @@
         <div class="post-head">
           <div class="avatar" aria-hidden="true">${esc(initials)}</div>
           <div class="who"><strong>${esc(p.who)}</strong><span>${esc(p.town)} · ${esc(p.ago)}</span></div>
-          <span class="chip">${esc(topic ? topic.label : '')}</span>
+          ${ownsPost(p) ? '<span class="chip mine-chip">Hantaran anda</span>' : `<span class="chip">${esc(topic ? topic.label : '')}</span>`}
         </div>
         <h3>${esc(p.title)}</h3>
         <p>${esc(p.body)}</p>
@@ -325,6 +326,7 @@
           <button class="ghost" data-like="${esc(p.id)}" aria-pressed="${liked}">${I.heart}${p.remote ? p.likes : p.likes + (liked ? 1 : 0)} suka</button>
           <span class="ghost" aria-label="${p.replies} balasan">${I.chat}${p.replies} balasan</span>
           ${p.sample ? '<span class="ghost" style="margin-left:auto">Contoh</span>' : ''}
+          ${ownsPost(p) ? `<button class="del-btn post-del" data-del-p="${esc(p.id)}" aria-label="Padam hantaran ${esc(p.title)}">${I.trash}Padam</button>` : ''}
         </div>
       </article>`;
   }
@@ -410,7 +412,7 @@
   async function deleteItem(kind, id, btn) {
     if (btn.dataset.armed !== '1') { btn.dataset.armed = '1'; btn.dataset.label = btn.dataset.label || btn.innerHTML; btn.textContent = 'Tekan lagi untuk padam'; setTimeout(() => { if (btn.isConnected && btn.dataset.armed === '1') { btn.dataset.armed = ''; btn.innerHTML = btn.dataset.label; } }, 3000); return; }
     const item = (kind === 'k' ? allKitchens() : allPosts()).find((x) => x.id === id);
-    if (!item || (kind === 'k' ? !ownsKitchen(item) : !(isMine(item) || (!item.remote && !item.sample)))) { toast('Hanya pemilik boleh padam'); return; }
+    if (!item || (kind === 'k' ? !ownsKitchen(item) : !ownsPost(item))) { toast('Hanya pemilik boleh padam'); return; }
     btn.disabled = true; btn.textContent = '…';
     const list = kind === 'k' ? state.myKitchens : state.myPosts;
     const localIdx = list.findIndex((x) => x.id === id);
