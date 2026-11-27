@@ -1,6 +1,6 @@
 /* Service worker Dapurkita: simpan fail app supaya boleh dibuka tanpa internet. */
-const CACHE = 'dapurkita-v8';
-const ASSETS = ['./', 'index.html', 'styles.css', 'app.js', 'data.js', 'manifest.webmanifest',
+const CACHE = 'dapurkita-v9';
+const ASSETS = ['./', 'index.html', 'styles.css', 'app.js', 'data.js', 'firebase.js', 'manifest.webmanifest',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {
@@ -25,7 +25,7 @@ self.addEventListener('fetch', (e) => {
         return res;
       }).catch(() => caches.match(req).then((r) => r || caches.match('index.html')))
     );
-  } else if (url.hostname.endsWith('gstatic.com') || url.hostname.endsWith('googleapis.com')) {
+  } else if (url.hostname === 'fonts.gstatic.com' || url.hostname === 'fonts.googleapis.com' || url.pathname.startsWith('/firebasejs/')) {
     e.respondWith(caches.match(req).then((r) => r || fetch(req).then((res) => {
       const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); return res;
     })));

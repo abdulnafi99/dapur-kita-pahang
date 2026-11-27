@@ -28,7 +28,12 @@
     liked: new Set(store.get('liked', [])),
     theme: store.get('theme', 'auto'),
     myKitchens: store.get('myKitchens', []),
-    myPosts: store.get('myPosts', [])
+    myPosts: store.get('myPosts', []),
+    /* Data dikongsi dari Firebase (null = belum dimuat) */
+    remoteKitchens: null,
+    remotePosts: null,
+    remoteLikes: {},
+    online: false
   };
 
   /* ---------- Ikon ---------- */
@@ -65,7 +70,7 @@
 
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const safeImg = (src) => (typeof src === 'string' && /^data:image\/(jpeg|png|webp);base64,/.test(src)) ? src : '';
-  const coverOf = (k) => safeImg((k.photos || [])[0]);
+  const coverOf = (k) => safeImg(k.cover) || safeImg((k.photos || [])[0]);
   const thumbHTML = (k) => { const c = coverOf(k); return c ? `<img src="${c}" alt="" loading="lazy" decoding="async">` : esc(k.emoji || '🍽️'); };
 
   /* Kecilkan foto dalam pelayar (maks 1000px, JPEG) supaya ringan disimpan */
@@ -86,6 +91,22 @@
       img.src = url;
     });
   }
+
+  function shrinkDataUrl(src, max, quality) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, max / Math.max(img.width, img.height));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        resolve(c.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = () => reject(new Error('Gambar tidak dapat dibaca'));
+      img.src = src;
+    });
+  }
+  const withTimeout = (pr, ms) => Promise.race([pr, new Promise((_, rej) => setTimeout(() => rej(new Error('masa tamat')), ms))]);
 
   /* Harga: "RM7.50" -> 7.5 */
   const priceOf = (txt) => { const m = String(txt || '').replace(/,/g, '').match(/(\d+(?:\.\d{1,2})?)/); return m ? parseFloat(m[1]) : null; };
@@ -116,8 +137,35 @@
   }
 
   /* ---------- Data gabungan ---------- */
-  const allKitchens = () => [...state.myKitchens, ...D.kitchens];
-  const allPosts = () => [...state.myPosts, ...D.posts];
+  const arr = (v) => (Array.isArray(v) ? v : v && typeof v === 'object' ? Object.values(v) : []);
+  const normKitchen = (k) => ({ ...k, cats: arr(k.cats), menu: arr(k.menu).map((m) => arr(m)) });
+  function agoText(ts) {
+    if (!ts) return 'Baru tadi';
+    const m = Math.max(0, Math.round((Date.now() - ts) / 60000));
+    if (m < 1) return 'Baru tadi';
+    if (m < 60) return m + ' min';
+    const h = Math.round(m / 60);
+    if (h < 24) return h + ' jam';
+    const d = Math.round(h / 24);
+    return d === 1 ? 'Semalam' : d + ' hari';
+  }
+  const normPost = (p) => {
+    const likes = state.remoteLikes[p.id] || {};
+    return { ...p, ago: agoText(p.createdAt), likes: Object.keys(likes).length, replies: 0, likedRemote: !!(fb() && fb().uid && likes[fb().uid]) };
+  };
+  const fb = () => window.DK_FB || null;
+  const isMine = (x) => !!(x.remote && fb() && fb().uid && x.owner === fb().uid);
+  /* Contoh hanya ditunjuk selagi belum ada data sebenar */
+  const allKitchens = () => {
+    const remote = (state.remoteKitchens || []).map(normKitchen);
+    const real = [...remote, ...state.myKitchens];
+    return real.length ? real : D.kitchens;
+  };
+  const allPosts = () => {
+    const remote = (state.remotePosts || []).map(normPost);
+    const real = [...remote, ...state.myPosts];
+    return real.length ? real : D.posts;
+  };
 
   function locLabel() {
     if (state.taman) return state.taman;
@@ -258,7 +306,7 @@
 
   function postCard(p) {
     const topic = D.topics.find((t) => t.id === p.topic);
-    const liked = state.liked.has(p.id);
+    const liked = p.remote ? p.likedRemote : state.liked.has(p.id);
     const initials = p.who.split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
     return `
       <article class="panel post">
@@ -270,7 +318,7 @@
         <h3>${esc(p.title)}</h3>
         <p>${esc(p.body)}</p>
         <div class="post-foot">
-          <button class="ghost" data-like="${esc(p.id)}" aria-pressed="${liked}">${I.heart}${p.likes + (liked ? 1 : 0)} suka</button>
+          <button class="ghost" data-like="${esc(p.id)}" aria-pressed="${liked}">${I.heart}${p.remote ? p.likes : p.likes + (liked ? 1 : 0)} suka</button>
           <span class="ghost" aria-label="${p.replies} balasan">${I.chat}${p.replies} balasan</span>
           ${p.sample ? '<span class="ghost" style="margin-left:auto">Contoh</span>' : ''}
         </div>
@@ -328,9 +376,8 @@
         <section class="section" aria-labelledby="h-mine">
         <div class="sec-head"><h2 id="h-mine">Dapur & hantaran saya</h2></div>
         <div class="perks">
-          <div class="perk"><span class="pi">${I.shop}</span>${state.myKitchens.length} iklan menu</div>
-          <div class="perk"><span class="pi">${I.chat}</span>${state.myPosts.length} hantaran komuniti</div>
-          <p class="perk-note muted small">Iklan dan hantaran anda kini disimpan di peranti ini sahaja. Ia akan dikongsi dengan semua pengguna bila pangkalan data disambung.</p>
+          ${mineRows()}
+          <p class="perk-note muted small"><span class="net-dot ${state.online ? 'on' : ''}"></span>${state.online ? 'Disambung ke pangkalan data. Iklan dan hantaran anda boleh dilihat oleh semua pengguna.' : 'Tiada sambungan ke pangkalan data. Iklan baru akan disimpan di peranti ini sahaja.'}</p>
         </div>
         </section>
         <button class="btn outline" id="splashAgain">Tunjuk skrin pembuka semula</button>
@@ -340,6 +387,63 @@
     $('#guideBtn').onclick = openGuide;
     $('#splashAgain').onclick = () => runSplash(true);
   }
+
+  function mineRows() {
+    const ks = allKitchens().filter((k) => isMine(k) || (!k.remote && !k.sample));
+    const ps = allPosts().filter((p) => isMine(p) || (!p.remote && !p.sample));
+    if (!ks.length && !ps.length) return `<div class="perk"><span class="pi">${I.shop}</span>Belum ada iklan atau hantaran. Tekan + untuk mula.</div>`;
+    const row = (x, kind) => `<div class="perk mine-row"><span class="pi">${kind === 'k' ? I.shop : I.chat}</span>
+      <span class="mine-txt"><strong>${esc(kind === 'k' ? x.name : x.title)}</strong><span class="muted small">${kind === 'k' ? 'Iklan menu' : 'Hantaran'}${x.remote ? '' : ' · peranti ini sahaja'}</span></span>
+      <button class="del-btn" data-del-${kind}="${esc(x.id)}" aria-label="Padam ${esc(kind === 'k' ? x.name : x.title)}">Padam</button></div>`;
+    return ks.map((k) => row(k, 'k')).join('') + ps.map((p) => row(p, 'p')).join('');
+  }
+
+  async function deleteItem(kind, id, btn) {
+    if (btn.dataset.armed !== '1') { btn.dataset.armed = '1'; btn.textContent = 'Pasti?'; setTimeout(() => { if (btn.isConnected) { btn.dataset.armed = ''; btn.textContent = 'Padam'; } }, 3000); return; }
+    btn.disabled = true; btn.textContent = '…';
+    const list = kind === 'k' ? state.myKitchens : state.myPosts;
+    const localIdx = list.findIndex((x) => x.id === id);
+    try {
+      if (localIdx >= 0) { list.splice(localIdx, 1); store.set(kind === 'k' ? 'myKitchens' : 'myPosts', list); }
+      else if (kind === 'k') await fb().deleteKitchen(id);
+      else await fb().deletePost(id);
+      toast(kind === 'k' ? 'Iklan dipadam' : 'Hantaran dipadam');
+    } catch (e) { toast('Gagal padam: ' + (e.message || e)); }
+    render();
+  }
+
+  /* ---------- Firebase: data masa nyata ---------- */
+  let fbStarted = false;
+  function startFirebase() {
+    const F = fb();
+    if (!F || fbStarted) return;
+    fbStarted = true;
+    const onErr = (e) => { console.warn('[Dapurkita] Firebase:', e && e.message); };
+    F.onConnection((on) => { state.online = on; if (state.tab === 'akaun') softRender(); });
+    F.onKitchens((list) => { state.remoteKitchens = list; softRender(); }, onErr);
+    F.onPosts((list) => { state.remotePosts = list; softRender(); }, onErr);
+    F.onLikes((likes) => { state.remoteLikes = likes; if (state.tab === 'komuniti') softRender(); }, onErr);
+    F.authReady.then(() => softRender());
+  }
+  /* Kemas kini tanpa ganggu input yang sedang ditaip */
+  function softRender() {
+    if ($('#splash') && !$('#splash').hidden && $('#app').hidden) { render(); return; }
+    if (state.tab === 'home' && $('#klist')) {
+      const l = filteredKitchens();
+      $('#klist').innerHTML = listOrEmpty(l);
+      $('#count').textContent = l.length + ' dapur';
+      return;
+    }
+    if (state.tab === 'komuniti' && $('.post-list')) {
+      const posts = allPosts().filter((p) => state.topic === 'semua' || p.topic === state.topic);
+      $('.post-list').innerHTML = posts.length ? posts.map(postCard).join('') : '<div class="panel empty"><span class="big" aria-hidden="true">💬</span><strong>Belum ada hantaran</strong><p>Jadi yang pertama tulis dalam topik ini.</p></div>';
+      const c = view.querySelector('#h-posts + .count'); if (c) c.textContent = posts.length + ' perkongsian';
+      return;
+    }
+    if (document.activeElement && view.contains(document.activeElement) && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
+    render();
+  }
+  if (fb()) startFirebase(); else window.addEventListener('dk-firebase-ready', startFirebase, { once: true });
 
   /* ---------- Router ---------- */
   const ORDER = ['home', 'komuniti', 'disimpan', 'akaun'];
@@ -456,7 +560,7 @@
     const k = allKitchens().find((x) => x.id === id);
     if (!k) return;
     const fav = state.favs.has(k.id);
-    const photos = (k.photos || []).map(safeImg).filter(Boolean);
+    const photos = (k.photos && k.photos.length ? k.photos : k.cover ? [k.cover] : []).map(safeImg).filter(Boolean);
     openSheet(`${head(esc(k.name), esc((k.area ? k.area + ', ' : '') + k.town))}
       ${photos.length
         ? `<div class="gallery" aria-label="Foto makanan">${photos.map((src, i) => `<img src="${src}" alt="Foto makanan ${i + 1} dari ${esc(k.name)}" decoding="async">`).join('')}</div>${photos.length > 1 ? `<div class="dots" aria-hidden="true">${photos.map((_, i) => `<i${i ? '' : ' class="on"'}></i>`).join('')}</div>` : ''}`
@@ -475,6 +579,17 @@
       </div>`, { noFocus: true });
     $('#shareBtn').onclick = () => shareText(`${k.name} (${k.town}) di Dapurkita @pahang`);
     $('#orderBtn').onclick = () => openOrder(k);
+    if (k.remote && (k.photoCount || 0) > 0 && !k._fullLoaded && fb()) {
+      fb().getPhotos(k.id).then((list) => {
+        const imgs = list.map(safeImg).filter(Boolean);
+        const gal = sheet.querySelector('.gallery');
+        if (!imgs.length || !gal || sheet.hidden) return;
+        gal.innerHTML = imgs.map((src, i) => `<img src="${src}" alt="Foto makanan ${i + 1} dari ${esc(k.name)}" decoding="async">`).join('');
+        let dots = sheet.querySelector('.dots');
+        if (imgs.length > 1 && !dots) { gal.insertAdjacentHTML('afterend', '<div class="dots" aria-hidden="true"></div>'); dots = sheet.querySelector('.dots'); }
+        if (dots) dots.innerHTML = imgs.map((_, i) => `<i${i ? '' : ' class="on"'}></i>`).join('');
+      }).catch(() => {});
+    }
     const g = sheet.querySelector('.gallery');
     if (g) g.addEventListener('scroll', () => {
       const i = Math.round(g.scrollLeft / g.clientWidth);
@@ -686,7 +801,7 @@
       const files = [...e.target.files].slice(0, 3 - photos.length);
       e.target.value = '';
       for (const f of files) {
-        try { photos.push(await resizeImage(f)); } catch (er) { toast(er.message); }
+        try { photos.push(await resizeImage(f, 900, 0.7)); } catch (er) { toast(er.message); }
       }
       drawPhotos();
     };
@@ -702,7 +817,7 @@
       const p = e.target.closest('[data-pick]');
       if (p) { const id = p.dataset.pick; picked.has(id) ? picked.delete(id) : picked.add(id); p.setAttribute('aria-pressed', picked.has(id)); }
     });
-    form.addEventListener('submit', (e) => {
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const name = $('#f-name').value.trim();
       const phone = normalizePhone($('#f-phone').value);
@@ -712,11 +827,30 @@
       const menu = $('#f-menu').value.split('\n').map((l) => l.trim()).filter(Boolean).map((l) => {
         const i = l.lastIndexOf('-'); return i > 0 ? [l.slice(0, i).trim(), l.slice(i + 1).trim()] : [l, ''];
       });
-      const k = {
-        id: 'u' + Date.now(), name, town: $('#f-town').value, area: ($('#f-taman').value === '__lain' ? $('#f-other').value.trim() : $('#f-taman').value), emoji: '🍽️',
-        status, lead: status === 'preorder' ? lead : undefined, cats: [...picked], desc: $('#f-desc').value.trim() || 'Masakan rumah dari dapur jiran.',
-        menu, hours: $('#f-hours').value.trim(), delivery: '', phone, photos: photos.slice()
+      const data = {
+        name: name.slice(0, 60), town: $('#f-town').value, area: ($('#f-taman').value === '__lain' ? $('#f-other').value.trim() : $('#f-taman').value).slice(0, 60), emoji: '🍽️',
+        status, cats: [...picked], desc: ($('#f-desc').value.trim() || 'Masakan rumah dari dapur jiran.').slice(0, 400),
+        menu: menu.slice(0, 30).map((m) => [m[0].slice(0, 80), (m[1] || '').slice(0, 80)]), hours: $('#f-hours').value.trim().slice(0, 80), phone
       };
+      if (status === 'preorder') data.lead = lead;
+      const submitBtn = form.querySelector('button[type=submit]');
+      if (fb()) {
+        submitBtn.disabled = true; submitBtn.textContent = 'Menerbitkan…';
+        try {
+          data.photoCount = photos.length;
+          if (photos.length) data.cover = await shrinkDataUrl(photos[0], 360, 0.7);
+          await withTimeout(fb().addKitchen(data, photos.slice()), 20000);
+          closeSheet(); state.cat = 'semua'; state.query = ''; setLoc(ALL, ''); go('home', true);
+          toast('Iklan diterbitkan untuk semua pembeli');
+          return;
+        } catch (er) {
+          submitBtn.disabled = false; submitBtn.textContent = 'Terbitkan iklan';
+          err.textContent = 'Tidak dapat terbit ke pangkalan data (' + (er.message || er) + '). Iklan disimpan di peranti ini dahulu.';
+          err.hidden = false;
+          delete data.cover; delete data.photoCount;
+        }
+      }
+      const k = { ...data, id: 'u' + Date.now(), delivery: '', photos: photos.slice() };
       state.myKitchens.unshift(k);
       if (!store.set('myKitchens', state.myKitchens)) {
         // Storan peranti penuh: simpan tanpa foto
@@ -725,7 +859,7 @@
         toast('Storan penuh: iklan disimpan tanpa foto');
       }
       closeSheet(); state.cat = 'semua'; state.query = ''; setLoc(ALL, ''); go('home', true);
-      toast('Iklan diterbitkan');
+      toast(fb() ? 'Disimpan di peranti ini (tiada sambungan)' : 'Iklan disimpan di peranti ini');
     });
   }
 
@@ -749,16 +883,29 @@
         <p class="small" id="postErr" style="margin:0;font-weight:700" hidden></p>
         <button class="btn" type="submit">Hantar</button>
       </form>`);
-    $('#postForm').addEventListener('submit', (e) => {
+    $('#postForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const title = $('#p-title').value.trim();
       if (!title) { const er = $('#postErr'); er.textContent = 'Sila isi tajuk hantaran.'; er.hidden = false; $('#p-title').focus(); return; }
       const who = $('#p-name').value.trim() || 'Warga Pahang';
       store.set('displayName', who);
-      const p = { id: 'up' + Date.now(), topic: $('#p-topic').value, who, town: $('#p-town').value, ago: 'Baru tadi', title, body: $('#p-body').value.trim(), likes: 0, replies: 0 };
+      const data = { topic: $('#p-topic').value, who: who.slice(0, 40), town: $('#p-town').value, title: title.slice(0, 100), body: $('#p-body').value.trim().slice(0, 600) };
+      if (fb()) {
+        const btn = $('#postForm button[type=submit]'); btn.disabled = true; btn.textContent = 'Menghantar…';
+        try {
+          await withTimeout(fb().addPost(data), 15000);
+          closeSheet(); state.topic = 'semua'; go('komuniti', true);
+          toast('Hantaran diterbitkan');
+          return;
+        } catch (er) {
+          btn.disabled = false; btn.textContent = 'Hantar';
+          toast('Tiada sambungan: disimpan di peranti ini (' + (er.message || er) + ')');
+        }
+      }
+      const p = { ...data, id: 'up' + Date.now(), ago: 'Baru tadi', likes: 0, replies: 0 };
       state.myPosts.unshift(p); store.set('myPosts', state.myPosts);
       closeSheet(); state.topic = 'semua'; go('komuniti', true);
-      toast('Hantaran diterbitkan');
+      if (!fb()) toast('Hantaran disimpan di peranti ini');
     });
   }
 
@@ -824,6 +971,10 @@
   /* ---------- Delegasi klik global ---------- */
   document.addEventListener('click', (e) => {
     const t = e.target;
+    const dk = t.closest('[data-del-k]');
+    if (dk) { deleteItem('k', dk.dataset.delK, dk); return; }
+    const dp = t.closest('[data-del-p]');
+    if (dp) { deleteItem('p', dp.dataset.delP, dp); return; }
     const fav = t.closest('[data-fav]');
     if (fav) {
       e.stopPropagation();
@@ -845,6 +996,11 @@
     const like = t.closest('[data-like]');
     if (like) {
       const id = like.dataset.like;
+      const post = allPosts().find((x) => x.id === id);
+      if (post && post.remote && fb()) {
+        fb().setLike(id, !post.likedRemote).catch((er) => toast('Gagal: ' + (er.message || er)));
+        return;
+      }
       state.liked.has(id) ? state.liked.delete(id) : state.liked.add(id);
       store.set('liked', [...state.liked]); render(); return;
     }

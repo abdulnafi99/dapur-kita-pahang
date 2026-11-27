@@ -36,6 +36,8 @@ Boleh terus deploy ke Vercel, Netlify atau GitHub Pages (folder root). Service w
 | `styles.css` | Reka bentuk hitam & kelabu, mod gelap |
 | `app.js` | Skrin, carian, borang, pemasangan PWA |
 | `data.js` | Kawasan & taman, kategori, data contoh dapur dan hantaran |
+| `firebase.js` | Sambungan Firebase (Realtime Database + Anonymous Auth) |
+| `database.rules.json`, `firebase.json` | Peraturan keselamatan pangkalan data |
 | `sw.js`, `manifest.webmanifest`, `icons/` | Fail PWA |
 
 ## Kawasan & taman
