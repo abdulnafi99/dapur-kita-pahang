@@ -20,7 +20,8 @@ window.DK_DATA = {
     { id: 'lauk', label: 'Lauk', icon: '🍛' },
     { id: 'nasi', label: 'Nasi', icon: '🍚' },
     { id: 'minuman', label: 'Minuman', icon: '🧋' },
-    { id: 'frozen', label: 'Frozen', icon: '🧊' }
+    { id: 'frozen', label: 'Frozen', icon: '🧊' },
+    { id: 'pizza', label: 'Pizza', icon: '🍕' }
   ],
 
   kitchens: [
@@ -72,6 +73,13 @@ window.DK_DATA = {
       desc: 'Nasi minyak dan lauk kenduri untuk majlis 50 hingga 500 orang. Tempah sebulan awal.',
       menu: [['Pakej nasi minyak (seorang)', 'RM12.00'], ['Dalca + acar (seorang)', 'RM3.00']],
       hours: 'Tempah 1 bulan awal', delivery: 'Hantar ke lokasi majlis sekitar Raub'
+    },
+    {
+      id: 'k9', sample: true, name: 'Pizza Rumah Kak Mira', town: 'Bentong', area: 'Taman Bentong Jaya', emoji: '🍕',
+      status: 'preorder', lead: 1, cats: ['pizza'],
+      desc: 'Pizza buatan rumah dengan doh lembut dan keju meleleh. Saiz 9 dan 12 inci.',
+      menu: [['Pizza ayam BBQ (9 inci)', 'RM22.00'], ['Pizza daging pepperoni (12 inci)', 'RM35.00'], ['Pizza cendawan & keju (9 inci)', 'RM20.00']],
+      hours: 'Tempah sehari awal', delivery: 'Ambil sendiri / COD sekitar Bentong'
     },
     {
       id: 'k7', sample: true, name: 'Halia Bentong Kak Siti', town: 'Bentong', area: 'Taman Bukit Bentong', emoji: '🫚',
