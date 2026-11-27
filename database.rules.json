@@ -178,6 +178,12 @@
           "createdAt": {
             ".validate": "newData.isNumber()"
           },
+          "avail": {
+            ".validate": "newData.val() === 'buka' || newData.val() === 'cuti' || newData.val() === 'tutup'"
+          },
+          "availNote": {
+            ".validate": "newData.isString() && newData.val().length <= 80"
+          },
           "$other": {
             ".validate": false
           }

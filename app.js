@@ -195,6 +195,12 @@
     return 'Selamat malam';
   }
 
+  /* Status kedai: buka / cuti / tutup (ditetapkan oleh peniaga) */
+  const AVAIL = { buka: 'Buka', cuti: 'Cuti', tutup: 'Tutup' };
+  const availOf = (k) => (k.avail === 'cuti' || k.avail === 'tutup' ? k.avail : 'buka');
+  const isClosed = (k) => availOf(k) !== 'buka';
+  const closedText = (k) => (availOf(k) === 'cuti' ? 'Kedai sedang cuti' : 'Kedai tutup buat sementara') + (k.availNote ? ' · ' + k.availNote : '');
+
   function filteredKitchens() {
     const q = state.query.trim().toLowerCase();
     return allKitchens().filter((k) => {
@@ -208,7 +214,7 @@
         if (!hay.includes(q)) return false;
       }
       return true;
-    });
+    }).sort((a, b) => (isClosed(a) ? 1 : 0) - (isClosed(b) ? 1 : 0));
   }
 
   function statusChip(k) {
@@ -220,13 +226,13 @@
   function kitchenCard(k) {
     const fav = state.favs.has(k.id);
     return `
-      <div class="card row-item" data-open="${esc(k.id)}" role="button" tabindex="0" aria-label="Buka ${esc(k.name)}">
+      <div class="card row-item${isClosed(k) ? ' closed' : ''}" data-open="${esc(k.id)}" role="button" tabindex="0" aria-label="Buka ${esc(k.name)}${isClosed(k) ? ' (' + AVAIL[availOf(k)] + ')' : ''}">
         <div class="thumb" aria-hidden="true">${thumbHTML(k)}</div>
         <div class="card-body">
           <strong>${esc(k.name)}</strong>
           <span class="loc">${I.pin}<span>${esc(k.area ? k.area + ', ' : '')}${esc(k.town)}</span></span>
           <span class="meta">${esc(k.desc)}</span>
-          <div class="chips">${statusChip(k)}${k.sample ? '<span class="chip ghost-chip">Contoh</span>' : ''}${ownsKitchen(k) ? '<span class="chip mine-chip">Iklan anda</span>' : ''}</div>
+          <div class="chips">${isClosed(k) ? `<span class="chip closed-chip">${availOf(k) === 'cuti' ? '🌴 Cuti' : '⛔ Tutup'}</span>` : statusChip(k)}${k.sample ? '<span class="chip ghost-chip">Contoh</span>' : ''}${ownsKitchen(k) ? '<span class="chip mine-chip">Iklan anda</span>' : ''}</div>
         </div>
         <button class="fav" data-fav="${esc(k.id)}" aria-pressed="${fav}" aria-label="${fav ? 'Buang dari' : 'Simpan ke'} Disimpan">${I.heart}</button>
       </div>`;
@@ -645,6 +651,18 @@
       <p class="muted small" style="margin:0">Taman anda tiada dalam senarai? Pilih “Semua taman di ${esc(cur)}”.</p>`, { noFocus: true });
   }
 
+  async function saveAvail(k, avail, note) {
+    if (!ownsKitchen(k)) throw new Error('Hanya pemilik');
+    const fields = { avail: avail === 'buka' ? null : avail, availNote: avail === 'buka' || !note ? null : note.slice(0, 80) };
+    if (k.remote) { await withTimeout(fb().updateKitchen(k.id, fields), 15000); return; }
+    const i = state.myKitchens.findIndex((x) => x.id === k.id);
+    if (i < 0) throw new Error('Iklan tidak dijumpai');
+    const upd = { ...state.myKitchens[i] };
+    if (fields.avail) upd.avail = fields.avail; else delete upd.avail;
+    if (fields.availNote) upd.availNote = fields.availNote; else delete upd.availNote;
+    state.myKitchens[i] = upd; store.set('myKitchens', state.myKitchens);
+  }
+
   function openDetail(id) {
     const k = allKitchens().find((x) => x.id === id);
     if (!k) return;
@@ -655,6 +673,7 @@
         ? `<div class="gallery" aria-label="Foto makanan">${photos.map((src, i) => `<img src="${src}" alt="Foto makanan ${i + 1} dari ${esc(k.name)}" decoding="async">`).join('')}</div>${photos.length > 1 ? `<div class="dots" aria-hidden="true">${photos.map((_, i) => `<i${i ? '' : ' class="on"'}></i>`).join('')}</div>` : ''}`
         : `<div class="detail-thumb" aria-hidden="true">${esc(k.emoji || '🍽️')}</div>`}
       <div class="chips">${statusChip(k)}${(k.cats || []).map((c) => { const cc = D.categories.find((x) => x.id === c); return cc ? `<span class="chip">${cc.label}</span>` : ''; }).join('')}${k.sample ? '<span class="chip">Contoh</span>' : ''}</div>
+      ${isClosed(k) ? `<div class="closed-banner" role="status"><span aria-hidden="true">${availOf(k) === 'cuti' ? '🌴' : '⛔'}</span><span><strong>${availOf(k) === 'cuti' ? 'Kedai sedang cuti' : 'Kedai tutup buat sementara'}</strong>${k.availNote ? `<br>${esc(k.availNote)}` : ''}<br><small>Pesanan tidak diterima buat masa ini.</small></span></div>` : ''}
       <p style="margin:0">${esc(k.desc)}</p>
       ${(k.menu && k.menu.length) ? `<div><div class="sec-head" style="margin-bottom:6px"><h2 style="font-size:16px">Menu</h2></div><div class="box">${k.menu.map((m) => `<div class="menu-item"><span>${esc(m[0])}</span>${m[1] ? `<b class="price">${esc(m[1])}</b>` : ''}</div>`).join('')}</div></div>` : ''}
       ${(k.hours || k.delivery) ? `<div class="box">
@@ -667,14 +686,43 @@
           <button class="edit-btn" data-edit-k="${esc(k.id)}" aria-label="Edit iklan ${esc(k.name)}">${I.pen}Edit</button>
           <button class="del-btn" data-del-k="${esc(k.id)}" aria-label="Padam iklan ${esc(k.name)}">${I.trash}Padam</button>
         </span>
+        <div class="avail-box">
+          <span class="avail-label">Status kedai</span>
+          <div class="seg seg-avail" role="group" aria-label="Status kedai">${Object.keys(AVAIL).map((a) => `<button type="button" data-avail="${a}" aria-pressed="${availOf(k) === a}">${a === 'buka' ? '🟢' : a === 'cuti' ? '🌴' : '⛔'} ${AVAIL[a]}</button>`).join('')}</div>
+          <div class="avail-note" ${isClosed(k) ? '' : 'hidden'}><input id="availNote" maxlength="80" placeholder="Nota untuk pembeli (cth. Cuti sampai 5 Dis)" value="${esc(k.availNote || '')}" aria-label="Nota cuti atau tutup"></div>
+          <button class="btn outline avail-save" id="availSave" hidden>Simpan status kedai</button>
+        </div>
       </div>` : ''}
-      <button class="btn accent" id="orderBtn">${I.bag}Buat pesanan</button>
+      ${isClosed(k)
+        ? `<button class="btn" id="orderBtn" disabled aria-disabled="true">${I.bag}${availOf(k) === 'cuti' ? 'Kedai cuti' : 'Kedai tutup'}: tidak terima pesanan</button>`
+        : `<button class="btn accent" id="orderBtn">${I.bag}Buat pesanan</button>`}
       <div class="row2">
         <button class="btn outline" data-fav="${esc(k.id)}" aria-pressed="${fav}">${I.heart}${fav ? 'Disimpan' : 'Simpan'}</button>
         <button class="btn outline" id="shareBtn">${I.share}Kongsi</button>
       </div>`, { noFocus: true });
     $('#shareBtn').onclick = () => shareText(`${k.name} (${k.town}) di Dapurkita @pahang`);
     $('#orderBtn').onclick = () => openOrder(k);
+    if (ownsKitchen(k)) {
+      let pick = availOf(k);
+      const saveBtn = $('#availSave'), noteWrap = sheet.querySelector('.avail-note');
+      const dirty = () => { saveBtn.hidden = pick === availOf(k) && ($('#availNote').value.trim() === (k.availNote || '') || pick === 'buka'); };
+      sheet.querySelectorAll('[data-avail]').forEach((b) => b.onclick = () => {
+        pick = b.dataset.avail;
+        sheet.querySelectorAll('[data-avail]').forEach((x) => x.setAttribute('aria-pressed', x === b));
+        noteWrap.hidden = pick === 'buka';
+        if (pick !== 'buka') $('#availNote').focus({ preventScroll: true });
+        dirty();
+      });
+      $('#availNote').addEventListener('input', dirty);
+      saveBtn.onclick = async () => {
+        saveBtn.disabled = true; saveBtn.textContent = 'Menyimpan…';
+        try {
+          await saveAvail(k, pick, $('#availNote').value.trim());
+          toast(pick === 'buka' ? 'Kedai dibuka semula' : pick === 'cuti' ? 'Kedai ditanda cuti' : 'Kedai ditanda tutup');
+          render(); setTimeout(() => openDetail(k.id), 60);
+        } catch (er) { toast('Gagal simpan: ' + (er.message || er)); saveBtn.disabled = false; saveBtn.textContent = 'Simpan status kedai'; }
+      };
+    }
     if (k.remote && (k.photoCount || 0) > 0 && !k._fullLoaded && fb()) {
       fb().getPhotos(k.id).then((list) => {
         const imgs = list.map(safeImg).filter(Boolean);
@@ -700,6 +748,7 @@
   }
 
   function openOrder(k) {
+    if (isClosed(k)) { toast(closedText(k)); return; }
     const saved = store.get('buyer', {});
     const items = (k.menu || []).map((m, i) => ({ i, name: m[0], label: m[1] || '', price: priceOf(m[1]), qty: 0 }));
     const earliest = new Date(Date.now() + (k.status === 'preorder' ? leadOf(k) : 0) * 86400000);
