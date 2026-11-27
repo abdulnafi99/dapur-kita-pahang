@@ -65,6 +65,7 @@
     minus: '<svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg>',
     plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
     bag: '<svg viewBox="0 0 24 24"><path d="M6 7h12l1 14H5z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>',
+    sparkle: '<svg viewBox="0 0 24 24"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>',
     fork: '<svg viewBox="0 0 24 24"><path d="M7 2v8a2 2 0 0 0 2 2v10"/><path d="M11 2v8a2 2 0 0 1-2 2"/><path d="M9 2v6"/><path d="M17 2c-1.7 1.3-2.5 3.6-2.5 6.5V13H17v9"/></svg>'
   };
 
@@ -380,12 +381,16 @@
           <p class="perk-note muted small"><span class="net-dot ${state.online ? 'on' : ''}"></span>${state.online ? 'Disambung ke pangkalan data. Iklan dan hantaran anda boleh dilihat oleh semua pengguna.' : 'Tiada sambungan ke pangkalan data. Iklan baru akan disimpan di peranti ini sahaja.'}</p>
         </div>
         </section>
-        <button class="btn outline" id="splashAgain">Tunjuk skrin pembuka semula</button>
+        <div class="row2">
+          <button class="btn outline" id="tourAgain">${I.sparkle}Panduan interaktif</button>
+          <button class="btn outline" id="splashAgain">Skrin pembuka</button>
+        </div>
       </div>`;
     const ib = $('#installBtn');
     if (ib) ib.onclick = doInstall;
     $('#guideBtn').onclick = openGuide;
     $('#splashAgain').onclick = () => runSplash(true);
+    $('#tourAgain').onclick = () => Tour.start();
   }
 
   function mineRows() {
@@ -493,6 +498,7 @@
     requestAnimationFrame(() => {
       const y = window.scrollY;
       const nearBottom = window.innerHeight + y >= document.documentElement.scrollHeight - 40;
+      if (document.body.classList.contains('touring')) { lastY = y; ticking = false; return; }
       if (y > lastY + 8 && y > 140 && !nearBottom) bar.classList.add('hide');
       else if (y < lastY - 8 || y < 140 || nearBottom) bar.classList.remove('hide');
       lastY = y; ticking = false;
@@ -1022,6 +1028,175 @@
   });
   $('#plusBtn').onclick = openCreate;
 
+
+  /* ---------- Panduan interaktif (spotlight titik ke titik) ---------- */
+  const Tour = (() => {
+    const inApp = () => /FBAN|FBAV|Instagram|WhatsApp|Line\/|TikTok|Messenger/i.test(navigator.userAgent);
+    const isAndroid = () => /android/i.test(navigator.userAgent);
+    const isIPad = () => navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+    let steps = [], idx = 0, root, hole, tip, ring, active = false;
+
+    const T = (sel) => () => document.querySelector(sel);
+    function build() {
+      const list = [
+        { tab: 'home', target: T('#locBtn'), title: 'Pilih kawasan anda', text: 'Tekan di sini untuk pilih Bentong, Karak, Mempaga, Raub atau Janda Baik, dan taman berdekatan.' },
+        { tab: 'home', target: T('.search'), title: 'Cari makanan', text: 'Taip nama menu, kuih atau dapur. Senarai terus ditapis.' },
+        { tab: 'home', target: T('.cats'), title: 'Pilih selera', text: 'Tapis ikut Ready Stock, Pre-Order atau jenis makanan.', pad: 6 },
+        { tab: 'home', target: T('#klist .row-item'), title: 'Buka dapur & pesan', text: 'Tekan mana-mana dapur untuk lihat menu, foto dan harga. Kemudian tekan “Buat pesanan” dan pesanan terus dihantar ke WhatsApp peniaga.' },
+        { tab: 'home', target: T('#klist .fav'), title: 'Simpan kegemaran', text: 'Tekan ikon hati untuk simpan dapur. Ia muncul dalam tab Disimpan.', round: true },
+        { tab: 'home', target: T('#plusBtn'), title: 'Peniaga? Iklan percuma', text: 'Tekan + untuk iklankan menu dapur anda, atau tulis hantaran komuniti.', round: true },
+        { tab: 'home', target: T('.tab[data-tab="komuniti"]'), title: 'Komuniti warga', text: 'Tanya port makan, cari runner atau kongsi open order dengan jiran.', round: true }
+      ];
+      if (isStandalone()) {
+        list.push({ title: 'Siap! 🎉', text: 'Aplikasi sudah dipasang di skrin utama. Selamat menjamu selera!', final: true });
+        return list;
+      }
+      list.push({ tab: 'akaun', target: T('.install-card'), title: 'Pasang ke skrin utama', text: 'Akhir sekali, pasang Dapurkita supaya boleh dibuka macam app biasa. Ikut langkah seterusnya.' });
+      if (inApp()) {
+        list.push({ chrome: 'top-right', title: 'Buka dalam pelayar dahulu', text: 'Anda sedang buka dari dalam WhatsApp/Facebook. Tekan ⋮ atau ikon kompas di atas, kemudian pilih “Buka dalam pelayar” (Safari atau Chrome).' });
+      } else if (isIOS()) {
+        const pos = isIPad() ? 'top-right' : 'bottom';
+        list.push({ chrome: pos, icon: I.share, title: '1. Tekan butang Kongsi', text: 'Ikon kotak dengan anak panah ke atas, di bar Safari ' + (isIPad() ? 'atas.' : 'bawah.') });
+        list.push({ chrome: pos, icon: I.plusSq, title: '2. “Tambah ke Skrin Utama”', text: 'Skrol senarai ke bawah dan pilih “Tambah ke Skrin Utama”.' });
+        list.push({ chrome: 'top-right', title: '3. Tekan “Tambah”', text: 'Di penjuru kanan atas. Ikon Dapurkita akan muncul di skrin utama anda.' });
+      } else if (deferredPrompt) {
+        list.push({ tab: 'akaun', target: T('#installBtn'), title: 'Tekan “Pasang sekarang”', text: 'Pengesahan akan muncul. Tekan “Pasang” dan ikon Dapurkita akan berada di skrin utama.', action: { label: 'Pasang sekarang', run: () => doInstall() } });
+      } else if (isAndroid()) {
+        list.push({ chrome: 'top-right', icon: I.dots, title: '1. Tekan menu ⋮', text: 'Tiga titik di penjuru kanan atas Chrome.' });
+        list.push({ chrome: 'top-right', icon: I.dl, title: '2. “Pasang aplikasi”', text: 'Pilih “Pasang aplikasi” atau “Tambah ke skrin utama”, kemudian tekan “Pasang”.' });
+      } else {
+        list.push({ chrome: 'top-right', icon: I.dl, title: 'Pasang dari bar alamat', text: 'Tekan ikon pasang di hujung kanan bar alamat pelayar, kemudian “Pasang”.' });
+      }
+      list.push({ title: 'Siap! 🎉', text: 'Anda sudah tahu semua yang penting. Selamat mencari makanan sedap di Pahang!', final: true });
+      return list;
+    }
+
+    function mount() {
+      root = document.createElement('div');
+      root.className = 'tour';
+      root.setAttribute('role', 'dialog');
+      root.setAttribute('aria-modal', 'true');
+      root.setAttribute('aria-label', 'Panduan interaktif');
+      root.innerHTML = '<div class="tour-hole"></div><div class="tour-ring"></div><div class="tour-tip" tabindex="-1"></div>';
+      document.body.appendChild(root);
+      hole = root.querySelector('.tour-hole'); ring = root.querySelector('.tour-ring'); tip = root.querySelector('.tour-tip');
+      root.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-tour]');
+        if (b) { const a = b.dataset.tour; if (a === 'next') next(); else if (a === 'back') back(); else if (a === 'skip') end(); else if (a === 'act') { const st = steps[idx]; st.action.run(); next(); } }
+      });
+    }
+
+    function place() {
+      if (!active) return;
+      const st = steps[idx];
+      const el = st.target ? st.target() : null;
+      const vw = window.innerWidth, vh = window.innerHeight;
+      root.classList.toggle('dim-only', !el);
+      root.dataset.chrome = st.chrome || '';
+      if (el) {
+        const r = el.getBoundingClientRect(), pad = st.pad != null ? st.pad : 8;
+        const x = r.left - pad, y = r.top - pad, w = r.width + pad * 2, h = r.height + pad * 2;
+        const rad = st.round ? Math.min(w, h) / 2 : 18;
+        Object.assign(hole.style, { left: x + 'px', top: y + 'px', width: w + 'px', height: h + 'px', borderRadius: rad + 'px' });
+        Object.assign(ring.style, { left: x + 'px', top: y + 'px', width: w + 'px', height: h + 'px', borderRadius: rad + 'px' });
+        // Letak bubble di bawah atau atas sasaran
+        const tw = Math.min(340, vw - 32);
+        tip.style.width = tw + 'px';
+        const th = tip.offsetHeight;
+        const below = y + h + 14 + th < vh - 12;
+        const top = below ? y + h + 14 : Math.max(12 + safeTop(), y - th - 14);
+        let left = r.left + r.width / 2 - tw / 2;
+        left = Math.max(16, Math.min(vw - tw - 16, left));
+        tip.style.left = left + 'px'; tip.style.top = top + 'px';
+        tip.dataset.side = below ? 'below' : 'above';
+        tip.style.setProperty('--arrow-x', Math.max(20, Math.min(tw - 20, r.left + r.width / 2 - left)) + 'px');
+      } else {
+        const tw = Math.min(340, vw - 32);
+        tip.style.width = tw + 'px';
+        tip.dataset.side = '';
+        const th = tip.offsetHeight;
+        let top = (vh - th) / 2, left = (vw - tw) / 2;
+        if (st.chrome === 'bottom') top = vh - th - 96 - safeBottom();
+        if (st.chrome === 'top-right') { top = 70 + safeTop(); left = vw - tw - 16; }
+        tip.style.left = left + 'px'; tip.style.top = top + 'px';
+      }
+    }
+    const safeTop = () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--safe-t')) || 0;
+    const safeBottom = () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--safe-b')) || 0;
+
+    function show() {
+      const st = steps[idx];
+      const n = steps.length;
+      tip.innerHTML = `
+        <div class="tour-top"><span class="tour-count">${idx + 1} / ${n}</span><button class="tour-skip" data-tour="skip">${st.final ? 'Tutup' : 'Langkau'}</button></div>
+        ${st.icon ? `<div class="tour-icon" aria-hidden="true">${st.icon}</div>` : ''}
+        <strong class="tour-title">${st.title}</strong>
+        <p class="tour-text">${st.text}</p>
+        <div class="tour-bar" aria-hidden="true"><i style="width:${((idx + 1) / n) * 100}%"></i></div>
+        <div class="tour-btns">
+          ${idx > 0 && !st.final ? '<button class="tour-back" data-tour="back">Kembali</button>' : '<span></span>'}
+          ${st.action ? `<button class="tour-next" data-tour="act">${st.action.label}</button>` : `<button class="tour-next" data-tour="next">${st.final ? 'Mula guna' : idx === n - 2 ? 'Selesai' : 'Seterusnya'}</button>`}
+        </div>`;
+      tip.classList.remove('in'); void tip.offsetWidth; tip.classList.add('in');
+      place();
+      tip.focus({ preventScroll: true });
+    }
+
+    async function go2(i) {
+      idx = Math.max(0, Math.min(steps.length - 1, i));
+      const st = steps[idx];
+      if (st.tab && state.tab !== st.tab) { go(st.tab); await wait(480); }
+      const el = st.target ? st.target() : null;
+      if (el) {
+        const r = el.getBoundingClientRect();
+        if (r.top < 90 + safeTop() || r.bottom > window.innerHeight - 110 - safeBottom()) {
+          el.scrollIntoView({ block: 'center', behavior: reduceMotion.matches ? 'auto' : 'smooth' });
+          await wait(420);
+        }
+      }
+      if (st.chrome) bar.classList.add('hide'); else showBar();
+      show();
+    }
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const next = () => (idx >= steps.length - 1 ? end() : go2(idx + 1));
+    const back = () => go2(idx - 1);
+
+    function onKey(e) {
+      if (!active) return;
+      if (e.key === 'Escape') { e.preventDefault(); end(); }
+      else if (e.key === 'ArrowRight') next();
+      else if (e.key === 'ArrowLeft') back();
+    }
+    const onMove = () => requestAnimationFrame(place);
+
+    function start() {
+      if (active) return;
+      if (!sheet.hidden) closeSheet();
+      steps = build();
+      if (!root) mount();
+      active = true;
+      document.body.classList.add('touring');
+      root.hidden = false; root.classList.add('on');
+      window.addEventListener('resize', onMove);
+      window.addEventListener('scroll', onMove, { passive: true });
+      document.addEventListener('keydown', onKey);
+      go2(0);
+    }
+    function end() {
+      active = false;
+      store.set('tourDone', true);
+      document.body.classList.remove('touring');
+      root.classList.remove('on');
+      setTimeout(() => { if (!active) root.hidden = true; }, 300);
+      window.removeEventListener('resize', onMove);
+      window.removeEventListener('scroll', onMove);
+      document.removeEventListener('keydown', onKey);
+      showBar();
+      if (state.tab !== 'home') go('home');
+    }
+    return { start, end, get active() { return active; } };
+  })();
+
   /* ---------- Splash ---------- */
   function runSplash(replay) {
     const sp = $('#splash');
@@ -1047,7 +1222,11 @@
   }
 
   render();
-  runSplash(false).then(() => animateView('f'));
+  runSplash(false).then(() => {
+    animateView('f');
+    // Panduan automatik pada lawatan pertama
+    if (!store.get('tourDone', false)) setTimeout(() => { if (sheet.hidden) Tour.start(); }, 900);
+  });
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
