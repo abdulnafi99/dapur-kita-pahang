@@ -65,6 +65,7 @@
     minus: '<svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg>',
     plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
     bag: '<svg viewBox="0 0 24 24"><path d="M6 7h12l1 14H5z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>',
+    trash: '<svg viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 13h10l1-13"/><path d="M9 7V4h6v3"/></svg>',
     sparkle: '<svg viewBox="0 0 24 24"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>',
     fork: '<svg viewBox="0 0 24 24"><path d="M7 2v8a2 2 0 0 0 2 2v10"/><path d="M11 2v8a2 2 0 0 1-2 2"/><path d="M9 2v6"/><path d="M17 2c-1.7 1.3-2.5 3.6-2.5 6.5V13H17v9"/></svg>'
   };
@@ -156,6 +157,8 @@
   };
   const fb = () => window.DK_FB || null;
   const isMine = (x) => !!(x.remote && fb() && fb().uid && x.owner === fb().uid);
+  /* Pemilik iklan: iklan Firebase milik peranti ini, atau iklan yang disimpan di peranti ini */
+  const ownsKitchen = (k) => isMine(k) || (!k.remote && !k.sample && String(k.id).startsWith('u'));
   /* Contoh hanya ditunjuk selagi belum ada data sebenar */
   const allKitchens = () => {
     const remote = (state.remoteKitchens || []).map(normKitchen);
@@ -216,7 +219,7 @@
           <strong>${esc(k.name)}</strong>
           <span class="loc">${I.pin}<span>${esc(k.area ? k.area + ', ' : '')}${esc(k.town)}</span></span>
           <span class="meta">${esc(k.desc)}</span>
-          <div class="chips">${statusChip(k)}${k.sample ? '<span class="chip ghost-chip">Contoh</span>' : ''}</div>
+          <div class="chips">${statusChip(k)}${k.sample ? '<span class="chip ghost-chip">Contoh</span>' : ''}${ownsKitchen(k) ? '<span class="chip mine-chip">Iklan anda</span>' : ''}</div>
         </div>
         <button class="fav" data-fav="${esc(k.id)}" aria-pressed="${fav}" aria-label="${fav ? 'Buang dari' : 'Simpan ke'} Disimpan">${I.heart}</button>
       </div>`;
@@ -404,7 +407,9 @@
   }
 
   async function deleteItem(kind, id, btn) {
-    if (btn.dataset.armed !== '1') { btn.dataset.armed = '1'; btn.textContent = 'Pasti?'; setTimeout(() => { if (btn.isConnected) { btn.dataset.armed = ''; btn.textContent = 'Padam'; } }, 3000); return; }
+    if (btn.dataset.armed !== '1') { btn.dataset.armed = '1'; btn.dataset.label = btn.dataset.label || btn.innerHTML; btn.textContent = 'Tekan lagi untuk padam'; setTimeout(() => { if (btn.isConnected && btn.dataset.armed === '1') { btn.dataset.armed = ''; btn.innerHTML = btn.dataset.label; } }, 3000); return; }
+    const item = (kind === 'k' ? allKitchens() : allPosts()).find((x) => x.id === id);
+    if (!item || (kind === 'k' ? !ownsKitchen(item) : !(isMine(item) || (!item.remote && !item.sample)))) { toast('Hanya pemilik boleh padam'); return; }
     btn.disabled = true; btn.textContent = '…';
     const list = kind === 'k' ? state.myKitchens : state.myPosts;
     const localIdx = list.findIndex((x) => x.id === id);
@@ -413,7 +418,8 @@
       else if (kind === 'k') await fb().deleteKitchen(id);
       else await fb().deletePost(id);
       toast(kind === 'k' ? 'Iklan dipadam' : 'Hantaran dipadam');
-    } catch (e) { toast('Gagal padam: ' + (e.message || e)); }
+      if (!sheet.hidden && sheet.contains(btn)) closeSheet();
+    } catch (e) { toast('Gagal padam: ' + (e.message || e)); btn.disabled = false; btn.textContent = 'Padam'; return; }
     render();
   }
 
@@ -578,6 +584,10 @@
         ${k.hours ? `<div class="menu-item"><span class="muted">Masa</span><span>${esc(k.hours)}</span></div>` : ''}
         ${k.delivery ? `<div class="menu-item"><span class="muted">Penghantaran</span><span style="text-align:right">${esc(k.delivery)}</span></div>` : ''}
       </div>` : ''}
+      ${ownsKitchen(k) ? `<div class="owner-box">
+        <span class="owner-txt"><strong>Iklan anda</strong><span>Hanya anda nampak butang ini. Pembeli tidak boleh padam iklan anda.</span></span>
+        <button class="del-btn" data-del-k="${esc(k.id)}" aria-label="Padam iklan ${esc(k.name)}">${I.trash}Padam iklan</button>
+      </div>` : ''}
       <button class="btn accent" id="orderBtn">${I.bag}Buat pesanan</button>
       <div class="row2">
         <button class="btn outline" data-fav="${esc(k.id)}" aria-pressed="${fav}">${I.heart}${fav ? 'Disimpan' : 'Simpan'}</button>
@@ -615,7 +625,7 @@
     const earliest = new Date(Date.now() + (k.status === 'preorder' ? leadOf(k) : 0) * 86400000);
     const iso = (d) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
     const minDate = iso(earliest);
-    let method = saved.method === 'hantar' ? 'hantar' : 'ambil';
+    let method = saved.method === 'cod' || saved.method === 'hantar' ? 'cod' : 'ambil';
 
     openSheet(`<div class="sheet-head"><button class="close" data-back aria-label="Kembali">${I.back}</button><div style="flex:1;min-width:0"><span class="eyebrow">Pesanan kepada</span><h2 style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(k.name)}</h2></div></div>
       <form id="orderForm" class="stack" novalidate>
@@ -638,10 +648,11 @@
           <div class="sec-head"><h2>Cara terima</h2></div>
           <div class="panel">
             <div class="seg" role="group" aria-label="Cara terima">
+              <button type="button" data-method="cod" aria-pressed="${method === 'cod'}">COD</button>
               <button type="button" data-method="ambil" aria-pressed="${method === 'ambil'}">Ambil sendiri</button>
-              <button type="button" data-method="hantar" aria-pressed="${method === 'hantar'}">Minta hantar</button>
             </div>
-            <div class="field" id="o-addr-wrap" ${method === 'hantar' ? '' : 'hidden'}><label for="o-addr">Alamat penghantaran</label><textarea id="o-addr" maxlength="200" placeholder="No. rumah, jalan, taman">${esc(saved.addr || '')}</textarea><span class="hint">Caj penghantaran (jika ada) ditetapkan oleh peniaga.</span></div>
+            <span class="hint" id="o-method-hint">${method === 'cod' ? 'COD: berjumpa dan bayar tunai semasa terima makanan.' : 'Ambil sendiri di lokasi peniaga. Peniaga akan beri alamat di WhatsApp.'}</span>
+            <div class="field" id="o-addr-wrap" ${method === 'cod' ? '' : 'hidden'}><label for="o-addr">Lokasi COD</label><textarea id="o-addr" maxlength="200" placeholder="cth. Depan Masjid Taman Permai, atau no. rumah & jalan">${esc(saved.addr || '')}</textarea><span class="hint">Caj COD (jika ada) ditetapkan oleh peniaga.</span></div>
             <div class="row2">
               <div class="field"><label for="o-date">Tarikh</label><input id="o-date" type="date" min="${minDate}" value="${minDate}"></div>
               <div class="field"><label for="o-time">Masa</label><input id="o-time" type="time" value="12:00"></div>
@@ -684,8 +695,8 @@
         '',
         chosen.length ? `*Anggaran jumlah: ${rm(total)}${known ? '' : ' + item tanpa harga'}*` : null,
         k.status === 'preorder' ? `Jenis: Pre-Order (tempah ${leadText(k)} awal)` : null,
-        `Cara terima: ${method === 'hantar' ? 'Minta hantar' : 'Ambil sendiri'}`,
-        method === 'hantar' && val('o-addr') ? `Alamat: ${val('o-addr')}` : null,
+        `Cara terima: ${method === 'cod' ? 'COD (bayar tunai semasa terima)' : 'Ambil sendiri'}`,
+        method === 'cod' && val('o-addr') ? `Lokasi COD: ${val('o-addr')}` : null,
         `Tarikh/masa: ${fmtDate(val('o-date'))} ${val('o-time')}`.trim(),
         `Nama: ${val('o-name') || '-'}`,
         val('o-phone') ? `Telefon: ${val('o-phone')}` : null,
@@ -715,7 +726,8 @@
       if (m) {
         method = m.dataset.method;
         form.querySelectorAll('[data-method]').forEach((b) => b.setAttribute('aria-pressed', b === m));
-        $('#o-addr-wrap').hidden = method !== 'hantar';
+        $('#o-addr-wrap').hidden = method !== 'cod';
+        $('#o-method-hint').textContent = method === 'cod' ? 'COD: berjumpa dan bayar tunai semasa terima makanan.' : 'Ambil sendiri di lokasi peniaga. Peniaga akan beri alamat di WhatsApp.';
         refresh();
       }
     });
@@ -729,7 +741,7 @@
       const fail = (msg, id) => { err.textContent = msg; err.hidden = false; if (id) $('#' + id).focus(); };
       if (!chosen.length && !val('o-note')) return fail('Pilih sekurang-kurangnya satu menu, atau tulis pesanan dalam nota.');
       if (!val('o-name')) return fail('Sila isi nama anda.', 'o-name');
-      if (method === 'hantar' && !val('o-addr')) return fail('Sila isi alamat penghantaran.', 'o-addr');
+      if (method === 'cod' && !val('o-addr')) return fail('Sila isi lokasi COD.', 'o-addr');
       if (!val('o-date') || val('o-date') < minDate) return fail(k.status === 'preorder' ? `Dapur ini perlukan tempahan ${leadText(k)} awal. Pilih ${fmtDay(earliest)} atau selepasnya.` : 'Sila pilih tarikh.', 'o-date');
       err.hidden = true;
       store.set('buyer', { name: val('o-name'), phone: val('o-phone'), addr: val('o-addr'), method });

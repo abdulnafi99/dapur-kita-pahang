@@ -587,3 +587,13 @@ h1, h2, h3, .big, strong { text-wrap: balance; }
 @keyframes bobDown { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(10px); } }
 @keyframes bobUp { 0%, 100% { transform: rotate(180deg) translateY(0); } 50% { transform: rotate(180deg) translateY(10px); } }
 body.touring { overflow: hidden; }
+/* Kotak pemilik iklan */
+.owner-box { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 16px; border: 1px dashed var(--line); background: var(--bg); }
+.owner-txt { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.owner-txt strong { font-size: 14px; }
+.owner-txt span { font-size: 12px; line-height: 1.4; color: var(--muted); }
+.owner-box .del-btn { display: inline-flex; align-items: center; gap: 6px; color: #C2185B; border-color: #F3C2D3; }
+.owner-box .del-btn svg { width: 16px; height: 16px; }
+.owner-box .del-btn[data-armed="1"] { color: #fff; }
+.chip.mine-chip { background: var(--fg); color: var(--bg); }
+.panel > .hint { font-size: 12px; line-height: 1.4; color: var(--muted); margin-top: -4px; }
