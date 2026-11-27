@@ -143,7 +143,15 @@
 
   /* ---------- Data gabungan ---------- */
   const arr = (v) => (Array.isArray(v) ? v : v && typeof v === 'object' ? Object.values(v) : []);
-  const normKitchen = (k) => ({ ...k, cats: arr(k.cats), menu: arr(k.menu).map((m) => arr(m)) });
+  /* Pisah "Nama - RM10" / "Nama – RM10" / "Nama — RM10" kepada [nama, harga] */
+  function splitMenuLine(line) {
+    const t = String(line || '').trim();
+    const m = t.match(/^(.*\S)\s*[-–—]\s*((?:RM\s*)?\d[\d.,]*\s*(?:\/.*)?)$/i) || t.match(/^(.*\S)\s*[-–—]\s*(\S.*)$/);
+    return m ? [m[1].trim(), m[2].trim()] : [t, ''];
+  }
+  /* Betulkan item lama yang harganya tersangkut dalam nama (sengkang panjang) */
+  const fixMenuItem = (m) => { const a = arr(m).map((x) => String(x || '')); return a[1] ? [a[0], a[1]] : splitMenuLine(a[0]); };
+  const normKitchen = (k) => ({ ...k, cats: arr(k.cats), menu: arr(k.menu).map(fixMenuItem) });
   function agoText(ts) {
     if (!ts) return 'Baru tadi';
     const m = Math.max(0, Math.round((Date.now() - ts) / 60000));
@@ -169,7 +177,7 @@
   /* Contoh hanya ditunjuk selagi belum ada data sebenar */
   const allKitchens = () => {
     const remote = (state.remoteKitchens || []).map(normKitchen);
-    const real = [...remote, ...state.myKitchens];
+    const real = [...remote, ...state.myKitchens.map(normKitchen)];
     return real.length ? real : D.kitchens;
   };
   const allPosts = () => {
@@ -651,6 +659,54 @@
       <p class="muted small" style="margin:0">Taman anda tiada dalam senarai? Pilih “Semua taman di ${esc(cur)}”.</p>`, { noFocus: true });
   }
 
+  /* ---------- Menu: kumpul item ikut saiz ---------- */
+  const SIZE_RE = /(\d+(?:[.,]\d+)?)\s*(inci|inch|in\b|"|″|cm|ml|liter|litre|l\b|kg|gram|g\b|pcs|biji|keping|pax|orang|ketul)/i;
+  const WORD_SIZE_RE = /\b(kecil|sederhana|besar|jumbo|mini|small|medium|large|regular|reguler|family)\b/i;
+  function sizeOf(name) {
+    let m = name.match(SIZE_RE);
+    if (m) {
+      const unit = m[2].toLowerCase();
+      const label = /^(inci|inch|in|"|″)$/.test(unit) ? m[1] + '″' : m[1] + (unit.length <= 2 ? unit : ' ' + unit);
+      return { label, base: (name.slice(0, m.index) + ' ' + name.slice(m.index + m[0].length)).replace(/\s+/g, ' ').replace(/[\s(–—-]+$/, '').replace(/\(\s*\)/g, '').trim() };
+    }
+    m = name.match(WORD_SIZE_RE);
+    if (m) return { label: m[1][0].toUpperCase() + m[1].slice(1).toLowerCase(), base: (name.slice(0, m.index) + ' ' + name.slice(m.index + m[0].length)).replace(/\s+/g, ' ').trim() };
+    return null;
+  }
+  const shortPrice = (p) => String(p || '').replace(/\s+/g, '').replace(/^rm/i, 'RM').replace(/\.00\b/, '');
+  function groupMenu(menu) {
+    const groups = [], byKey = {};
+    menu.forEach(([name, price]) => {
+      const sz = sizeOf(name);
+      const key = sz && sz.base ? sz.base.toLowerCase() : '\u0000' + name + groups.length;
+      if (sz && sz.base && byKey[key]) { byKey[key].sizes.push({ label: sz.label, price }); return; }
+      const g = { name: sz && sz.base ? sz.base : name, full: name, price, sizes: sz && sz.base ? [{ label: sz.label, price }] : null };
+      groups.push(g); if (sz && sz.base) byKey[key] = g;
+    });
+    // Kumpulan dengan satu saiz sahaja dipapar seperti item biasa
+    groups.forEach((g) => { if (g.sizes && g.sizes.length < 2) { g.name = g.full; g.sizes = null; } });
+    return groups;
+  }
+  function menuBlock(k) {
+    const menu = k.menu || [];
+    if (!menu.length) return '';
+    const groups = groupMenu(menu);
+    const SHOW = 4, collapse = groups.length > SHOW + 1;
+    const grouped = groups.length < menu.length;
+    const row = (g, i) => {
+      const hide = collapse && i >= SHOW ? ' hidden data-more-row' : '';
+      if (g.sizes) return `<div class="grp"${hide}><span class="grp-name">${esc(g.name)}</span><span class="sizes">${g.sizes.map((z) => `<span class="sz">${esc(z.label)}${z.price ? ` <b>${esc(shortPrice(z.price))}</b>` : ''}</span>`).join('')}</span></div>`;
+      return `<div class="menu-item"${hide}><span>${esc(g.name)}</span>${g.price ? `<b class="price">${esc(shortPrice(g.price))}</b>` : ''}</div>`;
+    };
+    const what = grouped ? 'jenis' : 'menu';
+    return `<div class="menu-block">
+      <div class="menu-head"><h2>Menu</h2><span>${grouped ? `${groups.length} jenis · ` : ''}${menu.length} item</span></div>
+      <div class="box">${groups.map(row).join('')}
+        ${collapse ? `<button type="button" class="menu-more" data-menu-more aria-expanded="false" data-label="Lihat semua ${groups.length} ${what}">${I.down}<span>Lihat semua ${groups.length} ${what}</span></button>` : ''}
+      </div>
+    </div>`;
+  }
+
   async function saveAvail(k, avail, note) {
     if (!ownsKitchen(k)) throw new Error('Hanya pemilik');
     const fields = { avail: avail === 'buka' ? null : avail, availNote: avail === 'buka' || !note ? null : note.slice(0, 80) };
@@ -675,7 +731,7 @@
       <div class="chips">${statusChip(k)}${(k.cats || []).map((c) => { const cc = D.categories.find((x) => x.id === c); return cc ? `<span class="chip">${cc.label}</span>` : ''; }).join('')}${k.sample ? '<span class="chip">Contoh</span>' : ''}</div>
       ${isClosed(k) ? `<div class="closed-banner" role="status"><span aria-hidden="true">${availOf(k) === 'cuti' ? '🌴' : '⛔'}</span><span><strong>${availOf(k) === 'cuti' ? 'Kedai sedang cuti' : 'Kedai tutup buat sementara'}</strong>${k.availNote ? `<br>${esc(k.availNote)}` : ''}<br><small>Pesanan tidak diterima buat masa ini.</small></span></div>` : ''}
       <p style="margin:0">${esc(k.desc)}</p>
-      ${(k.menu && k.menu.length) ? `<div><div class="sec-head" style="margin-bottom:6px"><h2 style="font-size:16px">Menu</h2></div><div class="box">${k.menu.map((m) => `<div class="menu-item"><span>${esc(m[0])}</span>${m[1] ? `<b class="price">${esc(m[1])}</b>` : ''}</div>`).join('')}</div></div>` : ''}
+      ${menuBlock(k)}
       ${(k.hours || k.delivery) ? `<div class="box">
         ${k.hours ? `<div class="menu-item"><span class="muted">Masa</span><span>${esc(k.hours)}</span></div>` : ''}
         ${k.delivery ? `<div class="menu-item"><span class="muted">Penghantaran</span><span style="text-align:right">${esc(k.delivery)}</span></div>` : ''}
@@ -1006,7 +1062,7 @@
       if (!name) { err.textContent = 'Sila isi nama dapur.'; err.hidden = false; $('#f-name').focus(); return; }
       if (!phone) { err.textContent = 'Nombor WhatsApp tidak sah. Contoh: 012-345 6789.'; err.hidden = false; $('#f-phone').focus(); return; }
       const menu = $('#f-menu').value.split('\n').map((l) => l.trim()).filter(Boolean).map((l) => {
-        const i = l.lastIndexOf('-'); return i > 0 ? [l.slice(0, i).trim(), l.slice(i + 1).trim()] : [l, ''];
+        return splitMenuLine(l);
       });
       const data = {
         name: name.slice(0, 60), town: $('#f-town').value, area: ($('#f-taman').value === '__lain' ? $('#f-other').value.trim() : $('#f-taman').value).slice(0, 60), emoji: '🍽️',
@@ -1211,6 +1267,14 @@
   /* ---------- Delegasi klik global ---------- */
   document.addEventListener('click', (e) => {
     const t = e.target;
+    const mm = t.closest('[data-menu-more]');
+    if (mm) {
+      const open = mm.getAttribute('aria-expanded') !== 'true';
+      mm.setAttribute('aria-expanded', open);
+      mm.closest('.box').querySelectorAll('[data-more-row]').forEach((r, i) => { r.hidden = !open; if (open) { r.style.setProperty('--i', i); r.classList.add('rise'); } });
+      mm.querySelector('span').textContent = open ? 'Tutup' : mm.dataset.label;
+      return;
+    }
     const cb = t.closest('[data-cmt]');
     if (cb) {
       const id = cb.dataset.cmt;

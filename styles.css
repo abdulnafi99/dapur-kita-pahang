@@ -664,3 +664,18 @@ body.touring { overflow: hidden; }
 .avail-note input { width: 100%; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; min-height: 44px; padding: 0 12px; font-size: 16px; outline: 0; }
 .avail-note input:focus { border-color: var(--fg); }
 .avail-save { height: 44px; }
+
+/* ---------- Menu ringkas: kumpul ikut saiz + Lihat semua ---------- */
+.menu-block { display: flex; flex-direction: column; gap: 8px; }
+.menu-head { display: flex; justify-content: space-between; align-items: baseline; padding: 0 2px; }
+.menu-head h2 { margin: 0; font-size: 16px; font-weight: 800; }
+.menu-head span { font-size: 13px; color: var(--muted); font-weight: 600; }
+.grp { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 0; }
+.box > .grp + .grp, .box > .menu-item + .grp, .box > .grp + .menu-item { border-top: 1px solid var(--line-soft); }
+.grp-name { font-size: 14px; line-height: 1.35; min-width: 0; }
+.sizes { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; flex: none; max-width: 62%; }
+.sz { display: inline-flex; align-items: baseline; gap: 4px; background: var(--surface-2); border-radius: 999px; padding: 4px 9px; font-size: 12px; font-weight: 600; color: var(--fg-2); white-space: nowrap; }
+.sz b { font-weight: 800; color: var(--price); font-variant-numeric: tabular-nums; }
+.menu-more { width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 48px; border: 0; border-top: 1px solid var(--line-soft); background: none; color: var(--fg); font-size: 14px; font-weight: 800; }
+.menu-more svg { width: 16px; height: 16px; stroke-width: 2.6; transition: transform .3s var(--ease-out); }
+.menu-more[aria-expanded="true"] svg { transform: rotate(180deg); }
