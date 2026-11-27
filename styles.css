@@ -597,3 +597,11 @@ body.touring { overflow: hidden; }
 .owner-box .del-btn[data-armed="1"] { color: #fff; }
 .chip.mine-chip { background: var(--fg); color: var(--bg); }
 .panel > .hint { font-size: 12px; line-height: 1.4; color: var(--muted); margin-top: -4px; }
+
+/* Butang edit iklan */
+.owner-btns { display: flex; gap: 8px; flex: none; }
+.edit-btn { flex: none; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--accent); color: var(--on-accent); font-size: 13px; font-weight: 800; min-height: 36px; padding: 0 14px; border-radius: 999px; transition: transform .15s; }
+.edit-btn svg { width: 15px; height: 15px; stroke-width: 2.4; }
+.edit-btn:active { transform: scale(.94); }
+.mine-row .edit-btn { margin-right: -4px; }
+@media (max-width: 380px) { .owner-box { flex-wrap: wrap; } .owner-btns { width: 100%; } .owner-btns > * { flex: 1; justify-content: center; } }

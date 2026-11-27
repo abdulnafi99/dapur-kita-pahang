@@ -402,6 +402,7 @@
     if (!ks.length && !ps.length) return `<div class="perk"><span class="pi">${I.shop}</span>Belum ada iklan atau hantaran. Tekan + untuk mula.</div>`;
     const row = (x, kind) => `<div class="perk mine-row"><span class="pi">${kind === 'k' ? I.shop : I.chat}</span>
       <span class="mine-txt"><strong>${esc(kind === 'k' ? x.name : x.title)}</strong><span class="muted small">${kind === 'k' ? 'Iklan menu' : 'Hantaran'}${x.remote ? '' : ' · peranti ini sahaja'}</span></span>
+      ${kind === 'k' ? `<button class="edit-btn" data-edit-k="${esc(x.id)}" aria-label="Edit ${esc(x.name)}">Edit</button>` : ''}
       <button class="del-btn" data-del-${kind}="${esc(x.id)}" aria-label="Padam ${esc(kind === 'k' ? x.name : x.title)}">Padam</button></div>`;
     return ks.map((k) => row(k, 'k')).join('') + ps.map((p) => row(p, 'p')).join('');
   }
@@ -585,8 +586,11 @@
         ${k.delivery ? `<div class="menu-item"><span class="muted">Penghantaran</span><span style="text-align:right">${esc(k.delivery)}</span></div>` : ''}
       </div>` : ''}
       ${ownsKitchen(k) ? `<div class="owner-box">
-        <span class="owner-txt"><strong>Iklan anda</strong><span>Hanya anda nampak butang ini. Pembeli tidak boleh padam iklan anda.</span></span>
-        <button class="del-btn" data-del-k="${esc(k.id)}" aria-label="Padam iklan ${esc(k.name)}">${I.trash}Padam iklan</button>
+        <span class="owner-txt"><strong>Iklan anda</strong><span>Hanya anda nampak butang ini. Pembeli tidak boleh edit atau padam iklan anda.</span></span>
+        <span class="owner-btns">
+          <button class="edit-btn" data-edit-k="${esc(k.id)}" aria-label="Edit iklan ${esc(k.name)}">${I.pen}Edit</button>
+          <button class="del-btn" data-del-k="${esc(k.id)}" aria-label="Padam iklan ${esc(k.name)}">${I.trash}Padam</button>
+        </span>
       </div>` : ''}
       <button class="btn accent" id="orderBtn">${I.bag}Buat pesanan</button>
       <div class="row2">
@@ -768,9 +772,11 @@
   }
 
   /* ---------- Borang ---------- */
-  function openListingForm() {
+  function openListingForm(edit) {
+    if (edit && edit.id === undefined) edit = null; // dipanggil sebagai pengendali klik
+    if (edit && !ownsKitchen(edit)) { toast('Hanya pemilik boleh edit iklan ini'); return; }
     const cats = D.categories.filter((c) => !['semua', 'ready', 'preorder'].includes(c.id));
-    openSheet(`${head('Iklan menu dapur', 'Percuma')}
+    openSheet(`${edit ? `<div class="sheet-head"><button class="close" data-edit-back aria-label="Kembali">${I.back}</button><div style="flex:1;min-width:0"><span class="eyebrow">Edit iklan</span><h2 style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(edit.name)}</h2></div></div>` : head('Iklan menu dapur', 'Percuma')}
       <form id="sellForm" class="stack" novalidate>
         <div class="field"><span style="font-size:13px;font-weight:700">Foto makanan <span class="muted" style="font-weight:600">(maks 3, yang pertama jadi gambar utama)</span></span>
           <div class="photo-grid" id="photoGrid"></div>
@@ -794,7 +800,7 @@
         <div class="field"><label for="f-phone">Nombor WhatsApp</label><input id="f-phone" type="tel" inputmode="tel" required placeholder="cth. 012-345 6789"><span class="hint">Pembeli akan hubungi nombor ini terus.</span></div>
         <div class="field"><label for="f-hours">Masa / cara ambil (pilihan)</label><input id="f-hours" maxlength="60" placeholder="cth. 7 pagi – 11 pagi, ambil sendiri"></div>
         <p class="muted small" id="sellErr" style="margin:0;color:var(--fg);font-weight:700" hidden></p>
-        <button class="btn" type="submit">Terbitkan iklan</button>
+        <button class="btn${edit ? ' accent' : ''}" type="submit">${edit ? 'Simpan perubahan' : 'Terbitkan iklan'}</button>
       </form>`);
     const form = $('#sellForm');
     const fillTaman = () => {
@@ -823,10 +829,42 @@
       }
       drawPhotos();
     };
+    let photosDirty = false;
     $('#photoGrid').addEventListener('click', (e) => {
       const d = e.target.closest('[data-del]');
-      if (d) { photos.splice(+d.dataset.del, 1); drawPhotos(); }
+      if (d) { photos.splice(+d.dataset.del, 1); photosDirty = true; drawPhotos(); }
     });
+    $('#f-photo').addEventListener('change', () => { photosDirty = true; });
+
+    /* Isi borang dengan data iklan sedia ada (mod edit) */
+    if (edit) {
+      $('#f-name').value = edit.name || '';
+      if (TOWNS.includes(edit.town)) { $('#f-town').value = edit.town; fillTaman(); }
+      const areas = D.areas[$('#f-town').value] || [];
+      if (edit.area && areas.includes(edit.area)) $('#f-taman').value = edit.area;
+      else if (edit.area) { $('#f-taman').value = '__lain'; $('#f-other-wrap').hidden = false; $('#f-other').value = edit.area; }
+      status = edit.status === 'preorder' ? 'preorder' : 'ready';
+      form.querySelectorAll('[data-status]').forEach((b) => b.setAttribute('aria-pressed', b.dataset.status === status));
+      $('#f-lead-wrap').hidden = status !== 'preorder';
+      lead = leadOf(edit);
+      form.querySelectorAll('[data-lead]').forEach((b) => b.setAttribute('aria-pressed', +b.dataset.lead === lead));
+      (edit.cats || []).forEach((c) => { picked.add(c); const b = form.querySelector(`[data-pick="${c}"]`); if (b) b.setAttribute('aria-pressed', 'true'); });
+      $('#f-desc').value = edit.desc || '';
+      $('#f-menu').value = (edit.menu || []).map((m) => (m[1] ? `${m[0]} - ${m[1]}` : m[0])).join('\n');
+      $('#f-phone').value = edit.phone ? '0' + String(edit.phone).replace(/^60/, '') : '';
+      $('#f-hours').value = edit.hours || '';
+      // Foto: iklan peranti ada terus; iklan Firebase dimuat dari pangkalan data
+      const local = (edit.photos || []).map(safeImg).filter(Boolean);
+      if (local.length) { photos.push(...local); drawPhotos(); }
+      else if (edit.remote && (edit.photoCount || 0) > 0 && fb()) {
+        if (edit.cover) { photos.push(safeImg(edit.cover)); drawPhotos(); }
+        fb().getPhotos(edit.id).then((list) => {
+          const imgs = list.map(safeImg).filter(Boolean);
+          if (imgs.length && !photosDirty && !sheet.hidden) { photos.splice(0, photos.length, ...imgs); drawPhotos(); }
+        }).catch(() => {});
+      }
+      sheet.querySelector('[data-edit-back]').onclick = () => openDetail(edit.id);
+    }
     form.addEventListener('click', (e) => {
       const s = e.target.closest('[data-status]');
       if (s) { status = s.dataset.status; form.querySelectorAll('[data-status]').forEach((b) => b.setAttribute('aria-pressed', b === s)); $('#f-lead-wrap').hidden = status !== 'preorder'; }
@@ -852,6 +890,37 @@
       };
       if (status === 'preorder') data.lead = lead;
       const submitBtn = form.querySelector('button[type=submit]');
+
+      if (edit) {
+        submitBtn.disabled = true; submitBtn.textContent = 'Menyimpan…';
+        try {
+          if (edit.remote) {
+            const fields = { ...data, lead: status === 'preorder' ? lead : null };
+            let newPhotos;
+            if (photosDirty) {
+              newPhotos = photos.slice();
+              fields.photoCount = newPhotos.length;
+              fields.cover = newPhotos.length ? await shrinkDataUrl(newPhotos[0], 360, 0.7) : null;
+            }
+            await withTimeout(fb().updateKitchen(edit.id, fields, newPhotos), 20000);
+          } else {
+            const i = state.myKitchens.findIndex((x) => x.id === edit.id);
+            if (i < 0) throw new Error('Iklan tidak dijumpai');
+            const upd = { ...state.myKitchens[i], ...data, photos: photos.slice() };
+            if (status !== 'preorder') delete upd.lead;
+            state.myKitchens[i] = upd;
+            if (!store.set('myKitchens', state.myKitchens)) throw new Error('Storan peranti penuh');
+          }
+          toast('Perubahan disimpan');
+          render();
+          setTimeout(() => openDetail(edit.id), 60);
+        } catch (er) {
+          submitBtn.disabled = false; submitBtn.textContent = 'Simpan perubahan';
+          err.textContent = 'Tidak dapat simpan (' + (er.message || er) + ').'; err.hidden = false;
+        }
+        return;
+      }
+
       if (fb()) {
         submitBtn.disabled = true; submitBtn.textContent = 'Menerbitkan…';
         try {
@@ -989,6 +1058,8 @@
   /* ---------- Delegasi klik global ---------- */
   document.addEventListener('click', (e) => {
     const t = e.target;
+    const ek = t.closest('[data-edit-k]');
+    if (ek) { const k = allKitchens().find((x) => x.id === ek.dataset.editK); if (k) openListingForm(k); return; }
     const dk = t.closest('[data-del-k]');
     if (dk) { deleteItem('k', dk.dataset.delK, dk); return; }
     const dp = t.closest('[data-del-p]');

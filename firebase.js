@@ -76,6 +76,14 @@ window.DK_FB = {
     await update(ref(db), updates);
     return id;
   },
+  /* Kemas kini medan iklan sedia ada (null = buang medan). photos: undefined = tidak diubah */
+  async updateKitchen(id, fields, photos) {
+    await needUid();
+    const updates = {};
+    for (const [k, v] of Object.entries(fields)) updates[ROOT + 'kitchens/' + id + '/' + k] = v === undefined ? null : v;
+    if (photos !== undefined) updates[ROOT + 'photos/' + id] = photos && photos.length ? photos : null;
+    await update(ref(db), updates);
+  },
   async getPhotos(id) {
     const s = await get(ref(db, ROOT + 'photos/' + id));
     const v = s.val();
