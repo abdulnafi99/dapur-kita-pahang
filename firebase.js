@@ -17,6 +17,10 @@ const firebaseConfig = {
   measurementId: 'G-21WZWSSY5H'
 };
 
+/* Projek ini dikongsi dengan Dapurkita Taiping (vendors, community_posts).
+   Semua data Pahang disimpan di bawah 'pahang/' supaya tidak bercampur. */
+const ROOT = 'pahang/';
+
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const auth = getAuth(app);
@@ -58,43 +62,43 @@ window.DK_FB = {
   get authError() { return authError; },
   authReady,
 
-  onKitchens(cb, onErr) { return onValue(ref(db, 'kitchens'), (s) => cb(toList(s)), onErr); },
-  onPosts(cb, onErr) { return onValue(ref(db, 'posts'), (s) => cb(toList(s)), onErr); },
-  onLikes(cb, onErr) { return onValue(ref(db, 'likes'), (s) => cb(s.val() || {}), onErr); },
+  onKitchens(cb, onErr) { return onValue(ref(db, ROOT + 'kitchens'), (s) => cb(toList(s)), onErr); },
+  onPosts(cb, onErr) { return onValue(ref(db, ROOT + 'posts'), (s) => cb(toList(s)), onErr); },
+  onLikes(cb, onErr) { return onValue(ref(db, ROOT + 'likes'), (s) => cb(s.val() || {}), onErr); },
   onConnection(cb) { return onValue(ref(db, '.info/connected'), (s) => cb(s.val() === true)); },
 
   async addKitchen(data, photos) {
     const owner = await needUid();
-    const id = push(ref(db, 'kitchens')).key;
+    const id = push(ref(db, ROOT + 'kitchens')).key;
     const updates = {};
-    updates['kitchens/' + id] = { ...data, owner, createdAt: serverTimestamp() };
-    if (photos && photos.length) updates['photos/' + id] = photos;
+    updates[ROOT + 'kitchens/' + id] = { ...data, owner, createdAt: serverTimestamp() };
+    if (photos && photos.length) updates[ROOT + 'photos/' + id] = photos;
     await update(ref(db), updates);
     return id;
   },
   async getPhotos(id) {
-    const s = await get(ref(db, 'photos/' + id));
+    const s = await get(ref(db, ROOT + 'photos/' + id));
     const v = s.val();
     return Array.isArray(v) ? v : (v ? Object.values(v) : []);
   },
   async deleteKitchen(id) {
     await needUid();
-    await update(ref(db), { ['kitchens/' + id]: null, ['photos/' + id]: null });
+    await update(ref(db), { [ROOT + 'kitchens/' + id]: null, [ROOT + 'photos/' + id]: null });
   },
 
   async addPost(data) {
     const owner = await needUid();
-    const id = push(ref(db, 'posts')).key;
-    await set(ref(db, 'posts/' + id), { ...data, owner, createdAt: serverTimestamp() });
+    const id = push(ref(db, ROOT + 'posts')).key;
+    await set(ref(db, ROOT + 'posts/' + id), { ...data, owner, createdAt: serverTimestamp() });
     return id;
   },
   async deletePost(id) {
     await needUid();
-    await update(ref(db), { ['posts/' + id]: null, ['likes/' + id]: null });
+    await update(ref(db), { [ROOT + 'posts/' + id]: null, [ROOT + 'likes/' + id]: null });
   },
   async setLike(postId, on) {
     const u = await needUid();
-    await set(ref(db, 'likes/' + postId + '/' + u), on ? true : null);
+    await set(ref(db, ROOT + 'likes/' + postId + '/' + u), on ? true : null);
   }
 };
 

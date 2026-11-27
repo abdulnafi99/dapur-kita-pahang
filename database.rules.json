@@ -1,65 +1,239 @@
 {
   "rules": {
-    ".read": false,
-    ".write": false,
-
-    "kitchens": {
+    "vendors": {
       ".read": true,
-      ".indexOn": ["createdAt", "town"],
-      "$id": {
-        ".write": "auth != null && ((!data.exists() && newData.child('owner').val() === auth.uid) || (data.exists() && data.child('owner').val() === auth.uid))",
-        ".validate": "newData.hasChildren(['name', 'town', 'phone', 'status', 'owner', 'createdAt'])",
-        "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 60" },
-        "town": { ".validate": "newData.isString() && newData.val().length <= 40" },
-        "area": { ".validate": "newData.isString() && newData.val().length <= 60" },
-        "status": { ".validate": "newData.val() === 'ready' || newData.val() === 'preorder'" },
-        "lead": { ".validate": "newData.val() === 1 || newData.val() === 3 || newData.val() === 7 || newData.val() === 30" },
-        "phone": { ".validate": "newData.isString() && newData.val().matches(/^60[0-9]{8,10}$/)" },
-        "desc": { ".validate": "newData.isString() && newData.val().length <= 400" },
-        "hours": { ".validate": "newData.isString() && newData.val().length <= 80" },
-        "emoji": { ".validate": "newData.isString() && newData.val().length <= 8" },
-        "cover": { ".validate": "newData.isString() && newData.val().beginsWith('data:image/') && newData.val().length < 60000" },
-        "photoCount": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 3" },
-        "cats": { "$i": { ".validate": "newData.isString() && newData.val().length <= 20" } },
-        "menu": { "$i": { "$j": { ".validate": "newData.isString() && newData.val().length <= 80" } } },
-        "owner": { ".validate": "newData.val() === auth.uid" },
-        "createdAt": { ".validate": "newData.isNumber()" },
-        "$other": { ".validate": false }
+      "$vendorId": {
+        ".write": "auth != null && (!data.exists() || data.child('ownerUid').val() === auth.uid)",
+        ".validate": "newData.hasChildren(['kitchenName', 'menuTitle', 'price', 'zone', 'status', 'phone', 'ownerUid'])",
+        "kitchenName": {
+          ".validate": "newData.isString() && newData.val().length > 1 && newData.val().length <= 60"
+        },
+        "menuTitle": {
+          ".validate": "newData.isString() && newData.val().length > 1 && newData.val().length <= 80"
+        },
+        "category": {
+          ".validate": "newData.isString() && newData.val().length <= 30"
+        },
+        "zone": {
+          ".validate": "newData.isString() && newData.val().length <= 80"
+        },
+        "neighborhood": {
+          ".validate": "newData.isString() && newData.val().length <= 80"
+        },
+        "price": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 500"
+        },
+        "status": {
+          ".validate": "newData.isString() && (newData.val() == 'Ready Stock' || newData.val() == 'Pre-Order' || newData.val() == 'Seminggu Awal')"
+        },
+        "delivery": {
+          ".validate": "newData.isString() && newData.val().length <= 60"
+        },
+        "phone": {
+          ".validate": "newData.isString() && newData.val().length >= 9 && newData.val().length <= 15"
+        },
+        "desc": {
+          ".validate": "newData.isString() && newData.val().length <= 300"
+        },
+        "image": {
+          ".validate": "newData.isString() && newData.val().length <= 500000"
+        },
+        "createdAt": {
+          ".write": "!data.exists()",
+          ".validate": "newData.isNumber()"
+        },
+        "ownerUid": {
+          ".write": "!data.exists()",
+          ".validate": "newData.isString() && newData.val() === auth.uid"
+        }
       }
     },
-
-    "photos": {
+    "community_posts": {
       ".read": true,
-      "$id": {
-        ".write": "auth != null && (root.child('kitchens').child($id).child('owner').val() === auth.uid || newData.parent().parent().child('kitchens').child($id).child('owner').val() === auth.uid)",
-        "$n": { ".validate": "$n.matches(/^[0-2]$/) && newData.isString() && newData.val().beginsWith('data:image/') && newData.val().length < 300000" }
+      "$postId": {
+        ".write": "auth != null && (!data.exists() || data.child('ownerUid').val() === auth.uid)",
+        ".validate": "newData.hasChildren(['author', 'authorZone', 'category', 'title', 'content', 'timestamp', 'ownerUid'])",
+        "author": {
+          ".write": "!data.exists()",
+          ".validate": "newData.isString() && newData.val().length > 1 && newData.val().length <= 40"
+        },
+        "authorZone": {
+          ".write": "!data.exists()",
+          ".validate": "newData.isString() && newData.val().length <= 80"
+        },
+        "category": {
+          ".write": "!data.exists()",
+          ".validate": "newData.isString() && newData.val().length <= 40"
+        },
+        "title": {
+          ".write": "!data.exists() || data.parent().child('ownerUid').val() === auth.uid",
+          ".validate": "newData.isString() && newData.val().length > 2 && newData.val().length <= 120"
+        },
+        "content": {
+          ".write": "!data.exists() || data.parent().child('ownerUid').val() === auth.uid",
+          ".validate": "newData.isString() && newData.val().length > 2 && newData.val().length <= 800"
+        },
+        "phone": {
+          ".write": "!data.exists() || data.parent().child('ownerUid').val() === auth.uid",
+          ".validate": "newData.isString() && newData.val().length <= 15"
+        },
+        "timestamp": {
+          ".write": "!data.exists()",
+          ".validate": "newData.isNumber()"
+        },
+        "likes": {
+          ".write": "auth != null",
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 9999"
+        },
+        "liked": {
+          ".write": "auth != null",
+          ".validate": "newData.isBoolean()"
+        },
+        "ownerUid": {
+          ".write": "!data.exists()",
+          ".validate": "newData.isString() && newData.val() === auth.uid && newData.val().length >= 20 && newData.val().length <= 40"
+        },
+        "comments": {
+          "$commentId": {
+            ".write": "auth != null && (!data.exists() || data.child('ownerUid').val() === auth.uid || root.child('community_posts').child($postId).child('ownerUid').val() === auth.uid)",
+            ".validate": "newData.hasChildren(['author', 'zone', 'text', 'timestamp', 'ownerUid'])",
+            "author": {
+              ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40"
+            },
+            "zone": {
+              ".validate": "newData.isString() && newData.val().length <= 80"
+            },
+            "text": {
+              ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 300"
+            },
+            "timestamp": {
+              ".validate": "newData.isNumber()"
+            },
+            "ownerUid": {
+              ".write": "!data.exists()",
+              ".validate": "newData.isString() && newData.val() === auth.uid"
+            }
+          }
+        }
       }
     },
-
-    "posts": {
-      ".read": true,
-      ".indexOn": ["createdAt"],
-      "$id": {
-        ".write": "auth != null && ((!data.exists() && newData.child('owner').val() === auth.uid) || (data.exists() && data.child('owner').val() === auth.uid))",
-        ".validate": "newData.hasChildren(['topic', 'who', 'town', 'title', 'owner', 'createdAt'])",
-        "topic": { ".validate": "newData.val() === 'open' || newData.val() === 'cari' || newData.val() === 'runner' || newData.val() === 'review'" },
-        "who": { ".validate": "newData.isString() && newData.val().length <= 40" },
-        "town": { ".validate": "newData.isString() && newData.val().length <= 40" },
-        "title": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 100" },
-        "body": { ".validate": "newData.isString() && newData.val().length <= 600" },
-        "owner": { ".validate": "newData.val() === auth.uid" },
-        "createdAt": { ".validate": "newData.isNumber()" },
-        "$other": { ".validate": false }
-      }
-    },
-
-    "likes": {
-      ".read": true,
-      "$post": {
-        ".write": "auth != null && root.child('posts').child($post).child('owner').val() === auth.uid && !newData.exists()",
-        "$uid": {
-          ".write": "auth != null && auth.uid === $uid",
-          ".validate": "newData.val() === true && root.child('posts').child($post).exists()"
+    "pahang": {
+      "kitchens": {
+        ".read": true,
+        ".indexOn": [
+          "createdAt",
+          "town"
+        ],
+        "$id": {
+          ".write": "auth != null && ((!data.exists() && newData.child('owner').val() === auth.uid) || (data.exists() && data.child('owner').val() === auth.uid))",
+          ".validate": "newData.hasChildren(['name', 'town', 'phone', 'status', 'owner', 'createdAt'])",
+          "name": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 60"
+          },
+          "town": {
+            ".validate": "newData.isString() && newData.val().length <= 40"
+          },
+          "area": {
+            ".validate": "newData.isString() && newData.val().length <= 60"
+          },
+          "status": {
+            ".validate": "newData.val() === 'ready' || newData.val() === 'preorder'"
+          },
+          "lead": {
+            ".validate": "newData.val() === 1 || newData.val() === 3 || newData.val() === 7 || newData.val() === 30"
+          },
+          "phone": {
+            ".validate": "newData.isString() && newData.val().matches(/^60[0-9]{8,10}$/)"
+          },
+          "desc": {
+            ".validate": "newData.isString() && newData.val().length <= 400"
+          },
+          "hours": {
+            ".validate": "newData.isString() && newData.val().length <= 80"
+          },
+          "emoji": {
+            ".validate": "newData.isString() && newData.val().length <= 8"
+          },
+          "cover": {
+            ".validate": "newData.isString() && newData.val().beginsWith('data:image/') && newData.val().length < 60000"
+          },
+          "photoCount": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 3"
+          },
+          "cats": {
+            "$i": {
+              ".validate": "newData.isString() && newData.val().length <= 20"
+            }
+          },
+          "menu": {
+            "$i": {
+              "$j": {
+                ".validate": "newData.isString() && newData.val().length <= 80"
+              }
+            }
+          },
+          "owner": {
+            ".validate": "newData.val() === auth.uid"
+          },
+          "createdAt": {
+            ".validate": "newData.isNumber()"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      },
+      "photos": {
+        ".read": true,
+        "$id": {
+          ".write": "auth != null && (root.child('pahang').child('kitchens').child($id).child('owner').val() === auth.uid || newData.parent().parent().child('kitchens').child($id).child('owner').val() === auth.uid)",
+          "$n": {
+            ".validate": "$n.matches(/^[0-2]$/) && newData.isString() && newData.val().beginsWith('data:image/') && newData.val().length < 300000"
+          }
+        }
+      },
+      "posts": {
+        ".read": true,
+        ".indexOn": [
+          "createdAt"
+        ],
+        "$id": {
+          ".write": "auth != null && ((!data.exists() && newData.child('owner').val() === auth.uid) || (data.exists() && data.child('owner').val() === auth.uid))",
+          ".validate": "newData.hasChildren(['topic', 'who', 'town', 'title', 'owner', 'createdAt'])",
+          "topic": {
+            ".validate": "newData.val() === 'open' || newData.val() === 'cari' || newData.val() === 'runner' || newData.val() === 'review'"
+          },
+          "who": {
+            ".validate": "newData.isString() && newData.val().length <= 40"
+          },
+          "town": {
+            ".validate": "newData.isString() && newData.val().length <= 40"
+          },
+          "title": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 100"
+          },
+          "body": {
+            ".validate": "newData.isString() && newData.val().length <= 600"
+          },
+          "owner": {
+            ".validate": "newData.val() === auth.uid"
+          },
+          "createdAt": {
+            ".validate": "newData.isNumber()"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      },
+      "likes": {
+        ".read": true,
+        "$post": {
+          ".write": "auth != null && root.child('pahang').child('posts').child($post).child('owner').val() === auth.uid && !newData.exists()",
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid",
+            ".validate": "newData.val() === true && root.child('pahang').child('posts').child($post).exists()"
+          }
         }
       }
     }
