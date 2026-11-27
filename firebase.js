@@ -100,6 +100,12 @@ window.DK_FB = {
     await set(ref(db, ROOT + 'posts/' + id), { ...data, owner, createdAt: serverTimestamp() });
     return id;
   },
+  async updatePost(id, fields) {
+    await needUid();
+    const updates = {};
+    for (const [k, v] of Object.entries(fields)) updates[ROOT + 'posts/' + id + '/' + k] = v === undefined ? null : v;
+    await update(ref(db), updates);
+  },
   async deletePost(id) {
     await needUid();
     await update(ref(db), { [ROOT + 'posts/' + id]: null, [ROOT + 'likes/' + id]: null });

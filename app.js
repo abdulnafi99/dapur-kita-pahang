@@ -324,8 +324,8 @@
         <p>${esc(p.body)}</p>
         <div class="post-foot">
           <button class="ghost" data-like="${esc(p.id)}" aria-pressed="${liked}">${I.heart}${p.remote ? p.likes : p.likes + (liked ? 1 : 0)} suka</button>
-          <span class="ghost" aria-label="${p.replies} balasan">${I.chat}${p.replies} balasan</span>
           ${p.sample ? '<span class="ghost" style="margin-left:auto">Contoh</span>' : ''}
+          ${ownsPost(p) ? `<button class="edit-btn post-edit" data-edit-p="${esc(p.id)}" aria-label="Edit hantaran ${esc(p.title)}">${I.pen}Edit</button>` : ''}
           ${ownsPost(p) ? `<button class="del-btn post-del" data-del-p="${esc(p.id)}" aria-label="Padam hantaran ${esc(p.title)}">${I.trash}Padam</button>` : ''}
         </div>
       </article>`;
@@ -404,7 +404,7 @@
     if (!ks.length && !ps.length) return `<div class="perk"><span class="pi">${I.shop}</span>Belum ada iklan atau hantaran. Tekan + untuk mula.</div>`;
     const row = (x, kind) => `<div class="perk mine-row"><span class="pi">${kind === 'k' ? I.shop : I.chat}</span>
       <span class="mine-txt"><strong>${esc(kind === 'k' ? x.name : x.title)}</strong><span class="muted small">${kind === 'k' ? 'Iklan menu' : 'Hantaran'}${x.remote ? '' : ' · peranti ini sahaja'}</span></span>
-      ${kind === 'k' ? `<button class="edit-btn" data-edit-k="${esc(x.id)}" aria-label="Edit ${esc(x.name)}">Edit</button>` : ''}
+      <button class="edit-btn" data-edit-${kind}="${esc(x.id)}" aria-label="Edit ${esc(kind === 'k' ? x.name : x.title)}">Edit</button>
       <button class="del-btn" data-del-${kind}="${esc(x.id)}" aria-label="Padam ${esc(kind === 'k' ? x.name : x.title)}">Padam</button></div>`;
     return ks.map((k) => row(k, 'k')).join('') + ps.map((p) => row(p, 'p')).join('');
   }
@@ -959,8 +959,10 @@
     return /^60\d{8,10}$/.test(d) ? d : '';
   }
 
-  function openPostForm() {
-    openSheet(`${head('Tulis hantaran', 'Komuniti')}
+  function openPostForm(edit) {
+    if (edit && edit.id === undefined) edit = null; // dipanggil sebagai pengendali klik
+    if (edit && !ownsPost(edit)) { toast('Hanya pemilik boleh edit hantaran ini'); return; }
+    openSheet(`${head(edit ? 'Edit hantaran' : 'Tulis hantaran', 'Komuniti')}
       <form id="postForm" class="stack" novalidate>
         <div class="row2">
           <div class="field"><label for="p-topic">Topik</label><select id="p-topic">${D.topics.slice(1).map((t) => `<option value="${t.id}">${t.label}</option>`).join('')}</select></div>
@@ -970,8 +972,15 @@
         <div class="field"><label for="p-title">Tajuk</label><input id="p-title" maxlength="80" required placeholder="cth. Siapa jual nasi kerabu area Karak?"></div>
         <div class="field"><label for="p-body">Butiran</label><textarea id="p-body" maxlength="500" placeholder="Tulis butiran di sini…"></textarea></div>
         <p class="small" id="postErr" style="margin:0;font-weight:700" hidden></p>
-        <button class="btn" type="submit">Hantar</button>
+        <button class="btn${edit ? ' accent' : ''}" type="submit">${edit ? 'Simpan perubahan' : 'Hantar'}</button>
       </form>`);
+    if (edit) {
+      $('#p-topic').value = edit.topic;
+      if (TOWNS.includes(edit.town)) $('#p-town').value = edit.town;
+      $('#p-name').value = edit.who || '';
+      $('#p-title').value = edit.title || '';
+      $('#p-body').value = edit.body || '';
+    }
     $('#postForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const title = $('#p-title').value.trim();
@@ -979,6 +988,25 @@
       const who = $('#p-name').value.trim() || 'Warga Pahang';
       store.set('displayName', who);
       const data = { topic: $('#p-topic').value, who: who.slice(0, 40), town: $('#p-town').value, title: title.slice(0, 100), body: $('#p-body').value.trim().slice(0, 600) };
+      if (edit) {
+        const btn = $('#postForm button[type=submit]'); btn.disabled = true; btn.textContent = 'Menyimpan…';
+        try {
+          if (edit.remote) await withTimeout(fb().updatePost(edit.id, data), 15000);
+          else {
+            const i = state.myPosts.findIndex((x) => x.id === edit.id);
+            if (i < 0) throw new Error('Hantaran tidak dijumpai');
+            state.myPosts[i] = { ...state.myPosts[i], ...data };
+            store.set('myPosts', state.myPosts);
+          }
+          closeSheet();
+          if (state.tab === 'komuniti') render(); else go('komuniti');
+          toast('Perubahan disimpan');
+        } catch (er) {
+          btn.disabled = false; btn.textContent = 'Simpan perubahan';
+          const el = $('#postErr'); el.textContent = 'Tidak dapat simpan (' + (er.message || er) + ').'; el.hidden = false;
+        }
+        return;
+      }
       if (fb()) {
         const btn = $('#postForm button[type=submit]'); btn.disabled = true; btn.textContent = 'Menghantar…';
         try {
@@ -1060,6 +1088,8 @@
   /* ---------- Delegasi klik global ---------- */
   document.addEventListener('click', (e) => {
     const t = e.target;
+    const ep = t.closest('[data-edit-p]');
+    if (ep) { const po = allPosts().find((x) => x.id === ep.dataset.editP); if (po) openPostForm(po); return; }
     const ek = t.closest('[data-edit-k]');
     if (ek) { const k = allKitchens().find((x) => x.id === ek.dataset.editK); if (k) openListingForm(k); return; }
     const dk = t.closest('[data-del-k]');
